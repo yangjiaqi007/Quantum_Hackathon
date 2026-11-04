@@ -20,9 +20,8 @@ Pipeline per slot
 
 prior_penalty
 -------------
-Doubling, inversion and spacing preferences are NOT among the paper's rules, so
-they are not in h or W. They only decide which voicings survive pruning. If you
-later want the optimizer itself to care, promote them to Rule classes in rules.py.
+Doubling and inversion preferences are pruning-only. Spacing is a hard candidate
+filter and is also represented by VoiceSpacing for explicit scoring and checking.
 
 Opening and closing slots keep only tonic chords (those rules are weighted, and
 no non-tonic candidate could ever win there).
@@ -36,14 +35,11 @@ from typing import Dict, List, Sequence, Tuple
 from Schema import ALTO, BASS, SOPRANO, TENOR, Melody, Voicing
 from Theory import (Chord, chord_vocabulary, chords_containing, inversion,
                     leading_tone_pc, midi_to_name)
-from Rules import DEFAULT_RANGES, TONICS, RuleContext, build_context
+from Rules import (DEFAULT_RANGES, MAX_BASS_GAP, MAX_UPPER_SPACING, TONICS,
+                   RuleContext, build_context)
 from Weights import get_weights, weighted_unary
 
 DEFAULT_K = 4
-MAX_UPPER_SPACING = 12     # soprano-alto and alto-tenor: at most an octave
-MAX_BASS_GAP = 19          # bass-tenor: at most an octave and a fifth
-
-
 # --------------------------------------------------------------------------
 # Step 2: enumeration with hard filters
 # --------------------------------------------------------------------------

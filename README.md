@@ -20,7 +20,13 @@ In another PowerShell window, submit and cache the example automatically:
 .\.venv\Scripts\python.exe -m backend.demo examples/ode_to_joy.json --output work/ode-result.json
 ```
 
-Run that command again to see `Saved result reused: True`. `--fresh` bypasses reuse and saves a new result. Add the team's verified O Canada melody in the same request format and pass its filename to the same command. This repo includes only an Ode to Joy opening fragment; it does not invent an O Canada transcription or include fabricated hardware results.
+Run that command again to see `Saved result reused: True`. `--fresh` bypasses reuse and saves a new result. To demo O Canada, serialize the compiler preset in the same request format and pass it to this command. No hardware results are fabricated.
+
+The compiler package includes Ode to Joy and O Canada presets. O Canada follows the official Canadian Heritage score; the melody is public domain.
+
+## Person 1 compiler API
+
+The compiler is available as `compiler/` while the original root modules remain import-compatible. It supports note-name strings (`melody_from_text`), monophonic MIDI files (`melody_from_midi`, requires `mido`), and `get_preset("ode_to_joy")` / `get_preset("o_canada")`. MIDI input selects the track with the most notes unless a track index is supplied. Rests are represented as a hold of the preceding pitch because the shared melody schema has no rest event; polyphonic tracks are rejected. `compiler.adapter:compile_melody` returns the backend `Compilation` envelope with slot durations, and `problem.h` / `problem.W` are the normalized cost arrays for quantum solvers. Harmony slots split at every melody-note boundary to preserve the supplied soprano.
 
 ## Setup on another computer
 

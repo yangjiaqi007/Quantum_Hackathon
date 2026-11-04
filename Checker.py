@@ -94,7 +94,8 @@ def brute_force(problem: CompiledProblem, max_states: int = 2_000_000
 # --------------------------------------------------------------------------
 RULE_NAMES = (
     "OpeningChord", "ClosingChord", "FinalCadence", "LeapHeight", "LeapResolution",
-    "VoiceCrossing", "VoiceRange", "StepwiseMotion", "ParallelOctaves",
+    "VoiceCrossing", "VoiceRange", "VoiceSpacing", "LeadingToneResolution",
+    "StepwiseMotion", "ParallelOctaves",
     "ParallelFifths", "VerticalConsonance",
 )
 _TONIC_LABELS = ("I", "i")
@@ -140,6 +141,7 @@ def count_violations(seq: Sequence[Voicing], tonic: int) -> Dict[str, int]:
         counts["VoiceRange"] += sum(1 for i in range(4) if not _RANGES[i][0] <= p[i] <= _RANGES[i][1])
         counts["VerticalConsonance"] += sum(
             1 for i in range(4) for j in range(i + 1, 4) if abs(p[j] - p[i]) % 12 in _DISSONANT)
+        counts["VoiceSpacing"] += int(p[3] - p[2] > 12) + int(p[2] - p[1] > 12) + int(p[1] - p[0] > 19)
 
     # Rules over consecutive chords
     for t in range(n - 1):
@@ -152,6 +154,10 @@ def count_violations(seq: Sequence[Voicing], tonic: int) -> Dict[str, int]:
                 counts["LeapResolution"] += 1
             if leap >= 3:                              # surrogate: not a step
                 counts["StepwiseMotion"] += 1
+        counts["LeadingToneResolution"] += sum(
+            1 for voice in range(4)
+            if a[voice] % 12 == (tonic + 11) % 12 and b[voice] - a[voice] != 1
+        )
         for lower in range(3):                         # overlap between adjacent voices
             upper = lower + 1
             if b[lower] > a[upper] or b[upper] < a[lower]:

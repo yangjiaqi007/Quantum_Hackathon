@@ -9,8 +9,9 @@ weighted cost. weights.py applies the style weights; compile.py builds h and W.
     pairwise(a, b, t, ctx)    cost of going a (slot t) -> b (slot t+1) -> goes in W
 
 Voice order everywhere: pitches = (bass, tenor, alto, soprano).
-The soprano is FIXED by the melody, so melodic rules look at the three free
-voices only (bass, tenor, alto).
+Most melodic motion rules look at the three free voices (bass, tenor, alto).
+The project also scores leading-tone resolution across all four voices and
+spacing between adjacent voices.
 
 WHICH PAPER RULES ARE IN, AND WHICH ARE NOT
 -------------------------------------------
@@ -47,6 +48,8 @@ DEFAULT_RANGES: Dict[int, Tuple[int, int]] = {
 PART_RANGE_LIMIT = 21     # a 13th (octave + fifth), in semitones
 LEAP_HEIGHT_LIMIT = 14    # a 9th (octave + second)
 MAJOR_SIXTH = 9
+MAX_UPPER_SPACING = 12    # adjacent upper voices: at most an octave
+MAX_BASS_GAP = 19         # bass to tenor: at most an octave and a fifth
 DISSONANT_CLASSES = {1, 2, 5, 10, 11}   # seconds, fourths, sevenths (paper's list)
 
 
@@ -183,6 +186,30 @@ class VoiceRange(Rule):                        # melodic 8
                          if not ctx.ranges[i][0] <= p <= ctx.ranges[i][1]))
 
 
+class VoiceSpacing(Rule):
+    """Penalty for spacing beyond the SATB limits used by candidate generation."""
+    name, paper_rule = "VoiceSpacing", "harmony spacing"
+
+    def unary(self, v, t, ctx):
+        b, tenor, alto, soprano = v.pitches
+        return float(
+            (soprano - alto > MAX_UPPER_SPACING)
+            + (alto - tenor > MAX_UPPER_SPACING)
+            + (tenor - b > MAX_BASS_GAP)
+        )
+
+
+class LeadingToneResolution(Rule):
+    """Each leading tone must resolve upward by semitone to the tonic."""
+    name, paper_rule = "LeadingToneResolution", "tonal voice leading"
+
+    def pairwise(self, a, b, t, ctx):
+        return float(sum(
+            pitch % 12 == (ctx.tonic + 11) % 12 and next_pitch - pitch != 1
+            for pitch, next_pitch in zip(a.pitches, b.pitches)
+        ))
+
+
 class StepwiseMotion(Rule):                    # melodic 10 (SURROGATE)
     """Paper: at least half of each part's intervals are steps (whole-part count).
     Surrogate: penalize each leap (>= 3 semitones); steps and repeats cost nothing."""
@@ -260,11 +287,11 @@ def rhythm_diagnostics(melody: Melody) -> Dict[str, object]:
 # --------------------------------------------------------------------------
 ALL_RULES: List[Rule] = [
     OpeningChord(), ClosingChord(), FinalCadence(), LeapHeight(), LeapResolution(),
-    VoiceCrossing(), VoiceRange(), StepwiseMotion(), ParallelOctaves(),
-    ParallelFifths(), VerticalConsonance(),
+    VoiceCrossing(), VoiceRange(), VoiceSpacing(), LeadingToneResolution(),
+    StepwiseMotion(), ParallelOctaves(), ParallelFifths(), VerticalConsonance(),
 ]
 RULES_BY_NAME: Dict[str, Rule] = {r.name: r for r in ALL_RULES}
-assert len(ALL_RULES) == 11
+assert len(ALL_RULES) == 13
 
 
 # --------------------------------------------------------------------------

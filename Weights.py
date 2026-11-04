@@ -25,19 +25,22 @@ from Schema import Voicing
 STYLE_PRESETS: Dict[str, Dict[str, float]] = {
     "strict": {
         "ParallelFifths": 20, "ParallelOctaves": 20, "VoiceCrossing": 20,
-        "VoiceRange": 20, "LeapHeight": 12, "OpeningChord": 10, "ClosingChord": 10,
+        "VoiceRange": 20, "VoiceSpacing": 10, "LeadingToneResolution": 10,
+        "LeapHeight": 12, "OpeningChord": 10, "ClosingChord": 10,
         "FinalCadence": 8, "LeapResolution": 4, "StepwiseMotion": 2,
         "VerticalConsonance": 1,
     },
     "chorale": {
         "ParallelFifths": 10, "ParallelOctaves": 10, "VoiceCrossing": 10,
-        "VoiceRange": 10, "LeapHeight": 8, "OpeningChord": 8, "ClosingChord": 8,
+        "VoiceRange": 10, "VoiceSpacing": 5, "LeadingToneResolution": 6,
+        "LeapHeight": 8, "OpeningChord": 8, "ClosingChord": 8,
         "FinalCadence": 6, "LeapResolution": 2, "StepwiseMotion": 1,
         "VerticalConsonance": 0.5,
     },
     "jazz_loose": {
         "ParallelFifths": 0.5, "ParallelOctaves": 0.5, "VoiceCrossing": 4,
-        "VoiceRange": 10, "LeapHeight": 3, "OpeningChord": 4, "ClosingChord": 4,
+        "VoiceRange": 10, "VoiceSpacing": 2, "LeadingToneResolution": 2,
+        "LeapHeight": 3, "OpeningChord": 4, "ClosingChord": 4,
         "FinalCadence": 2, "LeapResolution": 0.5, "StepwiseMotion": 0.5,
         "VerticalConsonance": 0.0,
     },

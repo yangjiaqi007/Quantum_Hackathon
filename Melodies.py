@@ -1,13 +1,13 @@
 """
 melodies.py: every way of getting a melody INTO the pipeline.
 
-Rule: whatever the source (preset, typed note names, MIDI upload later), the
+Rule: whatever the source (preset, typed note names, MIDI upload), the
 result is a `Melody` from schema.py. compile() never needs to know where it came
 from.
 
     presets ──────┐
     note text ────┼──→  Melody  ──→  compile()  ──→  CompiledProblem
-    MIDI upload ──┘     (MIDI upload: TODO)
+    MIDI upload ──┘
 
 Also provides slot_sopranos(): which soprano pitch sounds at each chord slot.
 """
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import re
+from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
 # Adjust this import to match where schema.py lives in your repo
@@ -90,33 +91,148 @@ def melody_from_text(
     return mel
 
 
+def melody_from_midi(path, key=None, mode=None, title=None,
+                     time_signature=None, harmonic_rhythm=1.0,
+                     track=None) -> Melody:
+    """Read a monophonic melody track from a Standard MIDI File.
+
+    Requires ``mido``. If ``track`` is omitted, uses the track with
+    the most complete notes. Durations are quarter-note beats. Since Melody
+    has no rest event, gaps are treated as sustained preceding notes.
+    """
+    try:
+        import mido
+    except ImportError as exc:
+        raise RuntimeError("MIDI import requires the 'mido' package") from exc
+
+    midi = mido.MidiFile(str(path))
+    if not midi.tracks:
+        raise ValueError("MIDI file contains no tracks")
+    if track is not None and not 0 <= track < len(midi.tracks):
+        raise ValueError(f"track index must be between 0 and {len(midi.tracks) - 1}")
+
+    def read_track(messages):
+        tick, active, events, signature, meter = 0, {}, [], None, None
+        for msg in messages:
+            tick += msg.time
+            if msg.type == "key_signature":
+                signature = msg.key
+            elif msg.type == "time_signature":
+                meter = (msg.numerator, msg.denominator)
+            if msg.type not in ("note_on", "note_off"):
+                continue
+            k = (getattr(msg, "channel", 0), msg.note)
+            if msg.type == "note_on" and msg.velocity > 0:
+                active.setdefault(k, []).append(tick)
+            elif active.get(k):
+                start = active[k].pop(0)
+                if tick > start:
+                    events.append((start, tick, msg.note))
+        if any(starts for starts in active.values()):
+            raise ValueError("MIDI track has note-on events without matching note-off")
+        return events, signature, meter
+
+    tracks = [read_track(t) for t in midi.tracks]
+    if track is None:
+        candidates = [
+            (i, [event for event in e if 60 <= event[2] <= 81], s, meter)
+            for i, (e, s, meter) in enumerate(tracks)
+        ]
+        candidates = [item for item in candidates if item[1]]
+        if not candidates:
+            raise ValueError("MIDI file contains no complete notes in the soprano range")
+        _, events, signature, meter = max(
+            candidates,
+            key=lambda x: (len(x[1]), sum(ev[2] for ev in x[1]) / len(x[1])),
+        )
+    else:
+        events, signature, meter = tracks[track]
+        if not events:
+            raise ValueError(f"MIDI track {track} contains no complete notes")
+    events.sort()
+    for previous, current in zip(events, events[1:]):
+        if current[0] < previous[1]:
+            raise ValueError("selected MIDI track is polyphonic; choose a monophonic melody track")
+        if current[0] == previous[0]:
+            raise ValueError("selected MIDI track has simultaneous melody notes")
+
+    key_names = {"C": "C", "G": "G", "D": "D", "A": "A", "E": "E",
+                 "B": "B", "F#": "F#", "C#": "C#", "F": "F",
+                 "Bb": "Bb", "Eb": "Eb", "Ab": "Ab", "Db": "Db",
+                 "Gb": "Gb", "Cb": "Cb"}
+    if key is None:
+        source_signature = signature or next(
+            (s for _, s, _ in tracks if s is not None), "C"
+        )
+        if source_signature.endswith("m"):
+            key = source_signature[:-1]
+            mode = mode or "minor"
+        else:
+            key = key_names.get(source_signature, "C")
+            mode = mode or "major"
+    else:
+        mode = mode or "major"
+    if time_signature is None:
+        time_signature = meter or next(
+            (m for _, _, m in tracks if m is not None), (4, 4)
+        )
+    notes = []
+    for i, (start, end, pitch) in enumerate(events):
+        next_start = events[i + 1][0] if i + 1 < len(events) else end
+        notes.append(Note(pitch, (next_start - start) / midi.ticks_per_beat))
+    melody = Melody(
+        title=title or Path(path).stem.replace("_", " ").title(),
+        tonic=tonic_to_pc(key), mode=mode, time_signature=time_signature,
+        notes=notes, harmonic_rhythm=harmonic_rhythm,
+    )
+    validate_melody(melody)
+    return melody
+
+
 # --------------------------------------------------------------------------
 # Slotting: melody notes -> one soprano pitch per chord slot
 # --------------------------------------------------------------------------
 def slot_sopranos(melody: Melody) -> List[int]:
     """
     Soprano pitch sounding at the START of each chord slot.
-    A slot is `harmonic_rhythm` beats long. If a note is held across several
-    slots, those slots share its pitch. If several short notes fall inside one
-    slot, the one sounding at the slot's start is used (passing tones are
-    ignored for now).
+    Slots occur at the harmonic-rhythm pulse and at every melody-note boundary,
+    so no slot crosses an input note. A note held across several slots repeats
+    its pitch in each of those slots.
     """
-    eps = 1e-9
-    starts, t = [], 0.0
-    for n in melody.notes:
-        starts.append(t)
-        t += n.duration
-    total = t
-    n_slots = max(1, math.ceil(total / melody.harmonic_rhythm - eps))
-
+    starts, total = [], 0.0
+    for note in melody.notes:
+        starts.append(total)
+        total += note.duration
+    boundaries = _slot_boundaries(melody)
     out: List[int] = []
     idx = 0
-    for s in range(n_slots):
-        onset = s * melody.harmonic_rhythm
-        while idx + 1 < len(melody.notes) and starts[idx + 1] <= onset + eps:
+    for onset in boundaries[:-1]:
+        while idx + 1 < len(melody.notes) and starts[idx + 1] <= onset + 1e-9:
             idx += 1
         out.append(melody.notes[idx].midi)
     return out
+
+
+def slot_durations(melody: Melody) -> List[float]:
+    """Duration of each compiler slot; slots partition notes without crossing boundaries."""
+    boundaries = _slot_boundaries(melody)
+    return [b - a for a, b in zip(boundaries, boundaries[1:])]
+
+
+def _slot_boundaries(melody: Melody) -> List[float]:
+    """Union of melody-note boundaries and harmonic-rhythm pulse boundaries."""
+    if melody.harmonic_rhythm <= 0:
+        raise ValueError("harmonic_rhythm must be positive")
+    total = sum(note.duration for note in melody.notes)
+    points = {0.0, total}
+    elapsed = 0.0
+    for note in melody.notes[:-1]:
+        elapsed += note.duration
+        points.add(elapsed)
+    pulse = melody.harmonic_rhythm
+    n_pulses = int(math.ceil(total / pulse - 1e-9))
+    points.update(min(i * pulse, total) for i in range(1, n_pulses))
+    return sorted(points)
 
 def final_run_start(soprano):
     """First slot of the trailing run of identical soprano pitches.
@@ -176,16 +292,17 @@ def ode_to_joy() -> Melody:
 
 
 def o_canada() -> Melody:
-    """
-    TODO (Person 1): enter O Canada from a VERIFIED public-domain score
-    (melody by Calixa Lavallee, 1880), then delete the raise below.
+    """O Canada in F major, based on the official Canadian Heritage score.
 
-    Use melody_from_text(...) like ode_to_joy(). Pick a key where the melody
-    sits inside the soprano range (60-81), and note any accidentals and the
-    pickup (upbeat) at the start. Decide how to handle the pickup: either
-    start the melody at the first full bar or add a short first note.
+    The pickup begins at beat 0 because the shared Melody schema has no
+    anacrusis offset field.
     """
-    raise NotImplementedError("Fill in O Canada from a verified score")
+    return melody_from_text(
+        "C4:1 F4:1 F4:1 A4:1 C5:2 C5:1 D5:1 C5:1 A4:1 F4:1 "
+        "G4:1 A4:1 Bb4:1 A4:1 G4:1 F4:2 E4:1 F4:1 G4:1 A4:2 "
+        "A4:1 G4:1 F4:1 E4:1 D4:1 E4:1 F4:1 G4:1 F4:2",
+        key="F", mode="major", title="O Canada",
+    )
 
 
 PRESETS: Dict[str, Callable[[], Melody]] = {
