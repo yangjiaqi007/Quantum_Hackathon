@@ -1,0 +1,8 @@
+# Core package (problem, qubo, qaoa, windowing, python simulator) has no dependencies.
+pytest>=7
+# Qiskit backend (quantum/qiskit_backend.py). Needs the V2 primitives, so qiskit >= 1.0.
+qiskit>=1.0
+# Optional: SciPy COBYLA optimiser (otherwise the built-in Nelder-Mead is used).
+scipy>=1.10
+# Optional: Aer simulator / noisy fake backends.
+qiskit-aer>=0.14
