@@ -1,0 +1,23 @@
+{
+  "melody": {
+    "title": "Ode to Joy - opening fragment",
+    "tonic": 0,
+    "mode": "major",
+    "time_signature": [4, 4],
+    "harmonic_rhythm": 1,
+    "notes": [
+      {"midi": 64, "duration": 1}, {"midi": 64, "duration": 1},
+      {"midi": 65, "duration": 1}, {"midi": 67, "duration": 1},
+      {"midi": 67, "duration": 1}, {"midi": 65, "duration": 1},
+      {"midi": 64, "duration": 1}, {"midi": 62, "duration": 1},
+      {"midi": 60, "duration": 1}, {"midi": 60, "duration": 1},
+      {"midi": 62, "duration": 1}, {"midi": 64, "duration": 1},
+      {"midi": 64, "duration": 1.5}, {"midi": 62, "duration": 0.5},
+      {"midi": 62, "duration": 2}
+    ]
+  },
+  "tempo": 100,
+  "style": "chorale",
+  "run": {"backend": "mock", "window_size": 3},
+  "use_cache": true
+}

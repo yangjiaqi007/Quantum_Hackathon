@@ -218,3 +218,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local backend state and development scratch files
+.local-data/
+work/
+.env.*
+!.env.example
+.venv/
+.env
+.env.*
+!.env.example
+.local-data/
+work/
+__pycache__/
+.pytest_cache/
