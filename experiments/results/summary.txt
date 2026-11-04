@@ -1,0 +1,14 @@
+At p=5, over 8 windows:
+  XY mixer:  P(valid) = 1.000, P(optimum) = 0.208, ratio = 0.933
+  X, P=0.5:  P(valid) = 0.755, P(optimum) = 0.026, ratio = 0.618
+  X, P=1.0:  P(valid) = 0.902, P(optimum) = 0.020, ratio = 0.646
+  X, P=2.0:  P(valid) = 0.621, P(optimum) = 0.016, ratio = 0.455
+  uniform guess: P(optimum) = 0.016
+  dephasing q=0.000: P(optimum) = 0.105
+  dephasing q=0.010: P(optimum) = 0.095
+  dephasing q=0.020: P(optimum) = 0.086
+  dephasing q=0.050: P(optimum) = 0.068
+  dephasing q=0.100: P(optimum) = 0.047
+  dephasing q=0.200: P(optimum) = 0.028
+  dephasing q=0.500: P(optimum) = 0.016
+  sampling: hit the optimum in 8/8 windows with 2000 shots; mean good chord sequences found 4.0 of 4.0
