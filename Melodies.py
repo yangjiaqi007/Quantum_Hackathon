@@ -118,6 +118,13 @@ def slot_sopranos(melody: Melody) -> List[int]:
         out.append(melody.notes[idx].midi)
     return out
 
+def final_run_start(soprano):
+    """First slot of the trailing run of identical soprano pitches.
+    The final cadence is the transition INTO this slot."""
+    i = len(soprano) - 1
+    while i > 0 and soprano[i - 1] == soprano[-1]:
+        i -= 1
+    return i
 
 # --------------------------------------------------------------------------
 # Validation (grow this as you meet bad user input)
