@@ -9,15 +9,15 @@ This is the Python service connecting the music compiler, Qiskit solver, and web
 Open PowerShell in this project folder. The local `.venv` has already been prepared. Start the service:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1
+.\.venv\Scripts\python.exe -m uvicorn person4.backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Alternatively run `.\start.ps1` if PowerShell permits local scripts. Open **http://127.0.0.1:8000/docs** for the interactive API. Use **POST /jobs**, click **Try it out**, paste `examples/ode_to_joy.json`, then execute. Copy its job ID into **GET /jobs/{job_id}** and **GET /jobs/{job_id}/result**. Press Ctrl+C in the server terminal to stop it.
+Alternatively run `.\start.ps1` if PowerShell permits local scripts. Open **http://127.0.0.1:8000/docs** for the interactive API. Use **POST /jobs**, click **Try it out**, paste `person4/examples/ode_to_joy.json`, then execute. Copy its job ID into **GET /jobs/{job_id}** and **GET /jobs/{job_id}/result**. Press Ctrl+C in the server terminal to stop it.
 
 In another PowerShell window, submit and cache the example automatically:
 
 ```powershell
-.\.venv\Scripts\python.exe -m backend.demo examples/ode_to_joy.json --output work/ode-result.json
+.\.venv\Scripts\python.exe -m person4.backend.demo person4/examples/ode_to_joy.json --output work/ode-result.json
 ```
 
 Run that command again to see `Saved result reused: True`. `--fresh` bypasses reuse and saves a new result. To demo O Canada, serialize the compiler preset in the same request format and pass it to this command. No hardware results are fabricated.
@@ -26,7 +26,7 @@ The compiler package includes Ode to Joy and O Canada presets. O Canada follows 
 
 ## Person 1 compiler API
 
-The compiler is available as `compiler/` while the original root modules remain import-compatible. It supports note-name strings (`melody_from_text`), monophonic MIDI files (`melody_from_midi`, requires `mido`), and `get_preset("ode_to_joy")` / `get_preset("o_canada")`. MIDI input selects the track with the most notes unless a track index is supplied. Rests are represented as a hold of the preceding pitch because the shared melody schema has no rest event; polyphonic tracks are rejected. `compiler.adapter:compile_melody` returns the backend `Compilation` envelope with slot durations, and `problem.h` / `problem.W` are the normalized cost arrays for quantum solvers. Harmony slots split at every melody-note boundary to preserve the supplied soprano.
+The compiler implementation is in `person1/compiler/` and is re-exported through the root `compiler/` compatibility facade. It supports note-name strings (`melody_from_text`), monophonic MIDI files (`melody_from_midi`, requires `mido`), and `get_preset("ode_to_joy")` / `get_preset("o_canada")`. MIDI input selects the track with the most notes unless a track index is supplied. Rests are represented as a hold of the preceding pitch because the shared melody schema has no rest event; polyphonic tracks are rejected. `compiler.adapter:compile_melody` returns the backend `Compilation` envelope with slot durations, and `problem.h` / `problem.W` are the normalized cost arrays for quantum solvers. Harmony slots split at every melody-note boundary to preserve the supplied soprano.
 
 ## Setup on another computer
 
@@ -49,18 +49,16 @@ Copy `.env.example` to `.env` when changing settings. Credentials and `.local-da
 
 | File | Purpose |
 | --- | --- |
-| `backend/main.py` | FastAPI endpoints, CORS, capability information |
-| `backend/models.py` | Public request validation |
-| `backend/jobs.py` | Background process, progress, timeout, cancellation, single-instance lock |
-| `backend/storage.py` | Persistent jobs and completed-result cache |
-| `backend/pipeline.py` | Connect teammates, preserve timing, solve bounded windows, decode results |
-| `backend/contracts.py` | Compiler envelope with slot durations |
-| `backend/mock_solver.py` | Clearly labeled development fixtures |
-| `backend/hardware.py` | Aer, fake-device noise, IBM Runtime V2 sampler, transpilation, resources |
-| `backend/reporting.py` | Exact small correctness benchmark and quality report |
-| `backend/config.py` | Server settings and private credentials |
-| `backend/demo.py` | Submit and save/cache demo runs |
-| `tests/` | API lifecycle, cache, failure, timing, encoding interface, and hardware-adapter checks |
+| `person1/compiler/` | Melody parsing, presets, candidate voicings, rule costs, checker, and `h`/`W` compiler output |
+| `person2/quantum/` | Reserved for plain QAOA and windowing implementation |
+| `person3/quantum/` | Constraint-preserving XY-mixer implementation and simulation helpers |
+| `person3/experiments/` | Mixer, depth, dephasing, and sampling comparisons with saved outputs |
+| `person4/backend/` | FastAPI endpoints, jobs, pipeline, hardware adapters, and resource/quality reports |
+| `person4/tests/` | Backend API, pipeline, and hardware adapter tests |
+| `person4/examples/` | Example API input payloads |
+| `person5/` | Reserved for web UI, export, demo, and presentation deliverables |
+| `Schema.py` | Shared data model and compiler/solver contract |
+| `compiler/` | Root compatibility facade and backend adapter |
 
 Person 5 owns score rendering, playback, MIDI/MusicXML exports, and melody parsing in the website. The API supplies timed notes for all four voices so that work can start now. It accepts structured MIDI-number JSON; text notation/MIDI upload parsing is not implemented by this service.
 
@@ -119,7 +117,7 @@ These signatures are proposed adapters, not assumptions that teammates have alre
 Compiler adapter:
 
 ```python
-from backend.contracts import Compilation
+from person4.backend.contracts import Compilation
 
 def compile_melody(melody, *, style) -> Compilation:
     # melody is Schema.Melody. Build the team's CompiledProblem.

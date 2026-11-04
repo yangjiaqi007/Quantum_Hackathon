@@ -1,6 +1,6 @@
 """Public melody input API; implementation is shared with legacy root imports."""
 
-from Melodies import (
+from person1.compiler.Melodies import (
     get_preset,
     melody_from_midi,
     melody_from_text,

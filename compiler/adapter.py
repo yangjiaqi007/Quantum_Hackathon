@@ -5,9 +5,9 @@ per h/W choice. Quantum callers can use ``compilation.problem.h`` and ``.W``
 directly or serialize the standard h/W JSON handoff with Compile.save_problem.
 """
 
-from backend.contracts import Compilation
-from Compile import compile_melody as _compile
-from Melodies import slot_durations
+from person4.backend.contracts import Compilation
+from person1.compiler.Compile import compile_melody as _compile
+from person1.compiler.Melodies import slot_durations
 
 
 def compile_melody(melody, *, style="chorale", K=4):
