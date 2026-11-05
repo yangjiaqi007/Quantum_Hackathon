@@ -45,8 +45,21 @@ def p5_ui_collect(ui):
     options = {"layers_p": int(ui["p"].value), "shots": int(ui["shots"].value),
                "window_size": int(ui["window"].value), "noisy": ui["backend"].value == "noisy",
                "use_api": bool(ui["use_api"].value), "backend": ui["backend"].value}
+    inversion_text = ui["inversions"].value.strip()
+    inversions = []
+    if inversion_text:
+        inversions = [token.strip() or "-" for token in inversion_text.split(",")]
+        total, boundaries = 0.0, {0.0}
+        for _, duration in melody.get("notes") or []:
+            total += float(duration)
+            boundaries.add(total)
+        pulse = 4.0
+        boundaries.update(min(i * pulse, total) for i in range(1, int(total // pulse) + 1))
+        expected = len(sorted(boundaries)) - 1
+        if len(inversions) != expected:
+            raise ValueError(f"Enter one inversion per chord slot: this melody has {expected} slots. Separate entries with commas; use - for automatic.")
     return P5Request(melody=melody, style=ui["style"].value, style_weight=1.0,
-                     solver="qaoa", options=options, tempo=tempo)
+                     solver="qaoa", options=options, tempo=tempo, inversions=inversions)
 
 
 def p5_safe_panel(out, fn, run):
@@ -100,6 +113,9 @@ def p5_build_ui():
                           f'<span style="display:inline-block;width:130px">{p5_html.escape(p5_t("solver_label"))}</span>'
                           f'<b>{p5_html.escape(p5_t("s_qaoa"))}</b></div>')
     ui["tempo"] = W.IntSlider(value=100, min=50, max=160, step=2, description=p5_t("tempo_label"), layout=lay("470px"), style=sty)
+    ui["inversions"] = W.Text(value="", placeholder="e.g. I, I6, V65, I64, -", description="Inversions / slot",
+                               layout=lay("620px"), style=sty)
+    ui["inversion_hint"] = W.HTML('<div style="color:#666;font-size:12px">Optional comma-separated figured bass, one per chord slot (slots follow melody-note boundaries and a 4-beat harmonic pulse). Use - for automatic. Examples: I6, I64, V65, V43, V42.</div>')
     ui["p"] = W.IntSlider(value=2, min=1, max=5, description=p5_t("adv_p"), layout=lay("420px"), style=sty)
     ui["shots"] = W.Dropdown(options=[512, 1024, 2048, 4096, 8192], value=2048, description=p5_t("adv_shots"), layout=lay("300px"), style=sty)
     ui["window"] = W.IntSlider(value=3, min=2, max=4, description=p5_t("adv_window"), layout=lay("420px"), style=sty)
@@ -124,7 +140,7 @@ def p5_build_ui():
 
     sec = lambda k: W.HTML(f'<div style="font-family:system-ui,Arial,sans-serif;font-weight:600;margin-top:8px">{p5_html.escape(p5_t(k))}</div>')
     ui["root"] = W.VBox([ui["header"], sec("sec_melody"), ui["melody"], ui["text_box"], ui["midi_box"], ui["custom_opts"],
-                         sec("sec_style"), ui["style"], ui["solver"], ui["tempo"], ui["adv"],
+                         sec("sec_style"), ui["style"], ui["solver"], ui["tempo"], ui["inversions"], ui["inversion_hint"], ui["adv"],
                          W.HBox([ui["preview"], ui["run"]]), W.HBox([ui["progress"], ui["status"]]), ui["variant"], ui["tabs"]])
 
     def show_hide(_=None):
@@ -218,19 +234,30 @@ def p5_build_ui():
             P5_STATE["last_run"] = run
             variants = [run] + list(run.alternatives or [])
             options = []
+            custom_progression = bool(run.request and run.request.inversions and any(
+                value is not None and str(value).strip() not in ("", "-")
+                for value in run.request.inversions
+            ))
             for i, variant in enumerate(variants):
                 energy = variant.report.get("energy")
                 progression = []
                 slots = variant.score.slots if variant.score is not None else []
-                for slot in slots:
-                    chord = slot.chord
-                    chord = str(chord)
-                    if chord and (not progression or progression[-1] != chord):
-                        progression.append(chord)
-                chord_path = " – ".join(progression[:10])
-                if len(progression) > 10:
-                    chord_path += " – …"
-                label = f"Progression {i + 1}: {chord_path}" if chord_path else f"Progression {i + 1}"
+                if custom_progression:
+                    voicings = ["/".join(p5_note_name(int(p), run.request.melody.get("key") or "C")
+                                            for p in slot.pitches[:3]) for slot in slots[:4]]
+                    note_path = " | ".join(voicings)
+                    if len(slots) > 4:
+                        note_path += " | ..."
+                    label = f"Voicing option {i + 1}: {note_path}" if note_path else f"Voicing option {i + 1}"
+                else:
+                    for slot in slots:
+                        chord = str(slot.chord)
+                        if chord and (not progression or progression[-1] != chord):
+                            progression.append(chord)
+                    chord_path = " - ".join(progression[:10])
+                    if len(progression) > 10:
+                        chord_path += " - ..."
+                    label = f"Progression {i + 1}: {chord_path}" if chord_path else f"Progression {i + 1}"
                 if energy is not None:
                     label += f" (energy {float(energy):.3g})"
                 options.append((label, i))

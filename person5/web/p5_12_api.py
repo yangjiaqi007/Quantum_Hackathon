@@ -58,6 +58,7 @@ def p5_api_harmonize_pipeline(req, progress=None):
         "notes": [{"midi": midi, "duration": float(duration)} for midi, duration in zip(carried, (d for _, d in notes))],
     }
     payload = {"melody": melody, "tempo": int(req.tempo), "style": style,
+               "inversions": req.inversions or None,
                "run": {"backend": backend, "solver": req.solver, "shots": int(req.options.get("shots", 2048)),
                        "reps": int(req.options.get("layers_p", 2)), "window_size": int(req.options.get("window_size", 3)),
                        "max_qubits": 16, "max_iterations": 50, "seed": 42},

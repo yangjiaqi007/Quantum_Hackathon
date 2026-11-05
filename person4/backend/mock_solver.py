@@ -4,7 +4,9 @@ from Schema import CompiledProblem, Voicing, SolverResult, Sample
 from .contracts import Compilation
 
 
-def compile_melody(melody, *, style):
+def compile_melody(melody, *, style, inversions=None):
+    if inversions and any(x not in (None, "", "-") for x in inversions):
+        raise ValueError('Chord inversion constraints require the team compiler; enable the local API.')
     candidates, durations = [], []
     for note in melody.notes:
         remaining = note.duration

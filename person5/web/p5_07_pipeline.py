@@ -26,6 +26,7 @@ class P5Request:
     solver: str = "qaoa"
     options: dict = p5_field(default_factory=dict)      # layers_p, shots, window_size, noisy
     tempo: int = 90
+    inversions: list = p5_field(default_factory=list)
 
 
 @p5_dataclass
@@ -111,7 +112,8 @@ def p5_run_request(req, progress=None):
                     carried.append((previous, duration))
                 solver_melody["notes"] = carried
             solver_req = P5Request(melody=solver_melody, style=req.style, style_weight=req.style_weight,
-                                   solver=req.solver, options=req.options, tempo=req.tempo)
+                                   solver=req.solver, options=req.options, tempo=req.tempo,
+                                   inversions=list(req.inversions))
             raw = p5_invoke_pipeline(fn, solver_req, progress)
         result, report = p5_split_return(raw)
         score_melody = req.melody

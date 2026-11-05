@@ -1,0 +1,183 @@
+﻿PERSON 1: MUSIC-TO-HARMONY COMPILER
+Hackathon explanation notes
+
+THE QUICK VERSION
+Person 1 built the music compiler. It takes a melody and musical settings, creates a small set of possible four-part harmonizations, scores those choices using music rules, and packages the scores for the quantum solver. Person 1 does not run QAOA; Person 2/3 solve the optimization problem, and the rest of the project presents the result.
+
+A 20-SECOND INTRO
+“I worked on the front end of the optimization pipeline: turning a soprano melody into a mathematical harmony problem. The compiler builds valid bass, tenor, and alto options under the melody, scores them for voice-leading and harmony rules, and sends those costs to the solver. That lets the solver search for a low-cost harmonization instead of needing music theory code inside the quantum algorithm.”
+
+WHAT GOES IN AND WHAT COMES OUT
+Input: a Melody object with notes, durations, key, mode, meter, and harmonic rhythm. The melody can come from a built-in preset, typed note names, or a MIDI file.
+
+Output: a Schema.CompiledProblem. For every time slot it contains candidate four-note voicings plus:
+- h[t][k]: the cost of choosing candidate k at slot t.
+- W[t][k][l]: the cost of moving from candidate k in slot t to candidate l in the next slot.
+- style and energy_scale metadata, with optional per-rule cost details.
+
+The energy for a complete selection is the sum of its h and W costs. Lower energy means fewer or less serious rule violations according to the chosen style weights. The compiler's energy is a classical objective function; it is not itself a quantum result.
+
+THE PIPELINE, STEP BY STEP
+1. Read the melody. person1/compiler/Melodies.py parses note text or MIDI and provides presets such as Ode to Joy and O Canada. It divides the melody into chord slots according to note boundaries and harmonic rhythm.
+2. Build musical context. person1/compiler/Rules.py records the key, mode, soprano notes, voice ranges, and cadence position.
+3. Generate candidates. person1/compiler/Candidates.py finds chords that can support each soprano note, enumerates bass/tenor/alto pitches, applies hard constraints such as voice ranges, no crossing, spacing, and required chord tones, then keeps a diverse shortlist (normally K=4).
+4. Score candidates and transitions. Rules.py measures per-voicing costs (h), such as opening/closing chord preferences, and between-voicing costs (W), such as parallel fifths/octaves, large leaps, voice leading, and cadence behavior. Weights.py applies the selected style (strict, chorale, or jazz_loose).
+5. Normalize and package. Compile.py scales costs so the largest individual cost is about 1 while preserving the relative ranking. It stores the original scale so raw weighted energy can be recovered and validates the result.
+6. Hand off. Person 2's solver uses this shared problem contract to find candidate choices. The interface can then display the selected notes and related output.
+
+WHY USE CANDIDATES?
+The number of possible note combinations is huge. The compiler first removes options that violate basic musical constraints, then keeps a few promising and varied candidates at each slot. This makes the optimization manageable while retaining different chord choices for the solver to compare. K controls how many candidates are retained per slot (default 4).
+
+WHAT “HAMILTONIAN” MEANS HERE
+The project turns musical preferences into an energy-minimization problem. Each candidate choice is a variable. h captures the cost at one slot; W captures the cost between neighboring slots. The solver searches for a selection with low total energy. Person 2 adds the one-choice-per-slot constraint in its QUBO/QAOA encoding; the compiler provides the musical choices and costs.
+
+FILES TO KNOW
+- person1/compiler/Melodies.py: melody parsing, MIDI import, presets, time-slot logic.
+- person1/compiler/Theory.py: chord vocabulary, chord membership, note/chord theory helpers.
+- person1/compiler/Candidates.py: voicing enumeration, hard filters, shortlist selection.
+- person1/compiler/Rules.py: rule definitions and musical context.
+- person1/compiler/Weights.py: style weights and cost normalization helpers.
+- person1/compiler/Compile.py: main compile_melody entry point; builds h and W; explains and saves problems.
+- person1/compiler/Checker.py: classical reference/checking utilities, including Viterbi and rule checking.
+- Schema.py: shared data contract between compiler and solver.
+
+A SHORT DEMO SCRIPT
+“For the demo, we can use Ode to Joy in D major. The melody is split into chord slots. At each slot, the compiler proposes up to four bass-tenor-alto-soprano voicings that fit the soprano and basic voice-leading constraints. It assigns costs based on the chorale style, including preferences about opening and closing chords, voice spacing, leaps, and parallel motion. Those local and transition costs become h and W arrays in CompiledProblem. The solver then picks one option per slot to reduce the total cost.”
+
+POSSIBLE JUDGE QUESTIONS
+Q: Is the compiler the quantum algorithm?
+A: No. It creates the musical optimization problem. The solver converts that problem to a quantum optimization representation and searches it.
+
+Q: What does a lower score mean?
+A: A lower score means a better fit to the selected weighted rules. It does not prove that the harmony is musically perfect.
+
+Q: Why only a few options per slot?
+A: To keep the search tractable. Candidate generation enforces basic constraints and preserves some chord diversity before optimization.
+
+Q: What do strict, chorale, and jazz_loose change?
+A: They change the relative penalties. For example, strict heavily penalizes parallel fifths/octaves, while jazz_loose tolerates them more. They do not change the solver itself.
+
+Q: Does every music-theory rule from the reference paper appear?
+A: No. The implementation uses a selected rule set; some rules are omitted or approximated. For example, some rules requiring three or more slots use pairwise surrogates. We should describe the result as a rule-guided harmonization demo, not a complete formal model of all harmony.
+
+Q: Does the compiler guarantee a perfect answer?
+A: No. It guarantees that candidates satisfy its hard filters, but the shortlist and weighted rules are a simplified model. The solver finds a low-cost choice among the candidates it receives.
+
+Q: What part did you personally build?
+A: Be specific about your actual contribution. A safe summary for the Person 1 role is the compiler workflow: melody input, candidate voicing generation, rule-based costs, and the h/W handoff. Mention only the parts you personally implemented or can explain.
+
+TECHNICAL DETAILS IF ASKED
+- Voice order in each voicing is (bass, tenor, alto, soprano).
+- Pitches use MIDI note numbers.
+- Adjacent-slot transition matrices W[t] have shape K_t by K_(t+1).
+- The current compiler handoff has an empty long_range list; it models unary and adjacent-slot costs.
+- Costs are normalized for numerical conditioning. raw_energy = normalized energy * energy_scale.
+- Candidate pruning uses a small prior for choosing which options to keep. That pruning prior is not added to the final Hamiltonian energy.
+- The compiler includes rule breakdowns so a chosen harmonization can be explained by rule contribution.
+
+HOW TO SHOW THE CODE
+Start with Compile.py and point to compile_melody(). Then trace its calls to build_context(), generate_candidates(), unary_breakdown()/pairwise_breakdown(), and normalize_costs(). Explain h as “cost of a choice” and W as “cost of a transition.” Finish at CompiledProblem in Schema.py, which is the agreement between Person 1 and the solver team.
+
+One-sentence takeaway:
+“Person 1 translates the melody and music rules into a compact, explainable optimization problem that the quantum solver can work on.”
+ 
+
+
+-----------------------------------------------------------------------
+DEFENDING THE DESIGN: WHY THESE CHOICES WERE MADE
+-----------------------------------------------------------------------
+
+1. Why separate the compiler from the solver?
+The compiler knows music concepts: notes, chords, voice ranges, and voice leading. The solver knows optimization: variables, objective coefficients, and search. Keeping these separate gives each part a clear contract (Schema.CompiledProblem), lets us change the solver without rewriting music rules, and lets us inspect or test the music model without running QAOA.
+
+If asked “why not put the rules directly into QAOA?”:
+“Because that would mix two different concerns. The compiler expresses the musical objective once; classical or quantum solvers can consume the same problem.”
+
+2. Why shortlist candidates instead of allowing every possible pitch?
+Every slot can have many pitch combinations. Searching all combinations across a whole melody grows exponentially. Candidate generation removes basic invalid voicings and retains a small diverse shortlist. K=4 is a practical demo setting that keeps the problem small enough to run while preserving some alternatives. It is a tradeoff: lower K is faster/smaller but may exclude a better harmonization; higher K offers more choices but increases solver cost.
+
+Be candid: the solver optimizes only among retained candidates. It cannot recover a voicing that pruning removed.
+
+3. Why use hard filters for some rules and weighted costs for others?
+Some properties define a usable candidate at all: matching the fixed soprano, being in a voice's range, and having voices in order with reasonable spacing. Those are efficient to enforce before optimization. Other preferences depend on comparing choices, such as parallel fifths between consecutive chords or whether motion is smooth. Those need to remain as costs so the solver can trade them off.
+
+There is deliberate overlap: some properties are hard filters and also have rule costs/checks. This keeps the candidate set safe and supports diagnostics, while the cost model remains explicit. Since candidates already pass these filters, those particular costs may be zero for current candidates.
+
+4. Why use h for one-slot costs and W for transitions?
+A choice can be judged on its own (h), or in context with the next choice (W). This decomposition captures the current rule set as a chain: local terms plus adjacent-slot pair terms. It is compact and maps naturally to the team's optimization encoding. It also makes exact classical dynamic programming (Viterbi) possible for this chain model.
+
+Limitation: a rule that truly needs three or more slots cannot always be represented exactly by adjacent pair costs. The current rules document marks some approximations as surrogates. Be clear that the model uses approximations where necessary.
+
+5. Why weight rules and offer multiple styles?
+Harmony is not one universal ranking. A strict counterpoint style and a looser jazz style can reasonably prefer different things. Weights make those tradeoffs visible and tunable without changing the rule code. The same candidate/cost pipeline supports preset or custom weights.
+
+This is a heuristic style model, not a claim that these numbers are objectively correct. Weights are chosen to express intended relative importance and should be evaluated with musicians/listeners.
+
+6. Why normalize costs?
+QAOA optimization can become difficult when coefficients have a wide numeric range. Dividing all costs by one common positive scale keeps their relative ordering and tradeoffs intact while reducing coefficient size. The compiler stores energy_scale, so raw weighted costs can be recovered. Common scaling preserves the optimizer's minimizer mathematically; it does not change which candidate sequence is best.
+
+7. Why keep per-rule breakdowns?
+A single total score is hard to debug and explain. The compiler carries per-rule h and W components, and explain_selection() can report how much each rule contributed. That makes outputs easier to diagnose and gives us a way to explain why one sequence scored differently.
+
+8. Why have a classical checker and Viterbi code?
+The compiler needs independent ways to catch mistakes. The checker recounts rule violations separately from the production rule classes, and tests compare those counts to the reported energy. Viterbi gives an exact classical optimum for this adjacent chain model and serves as a reference for small compiler problems. It is useful for validating that a solver's result is sensible; it does not prove quantum advantage.
+
+9. Why use MIDI pitch numbers internally?
+MIDI numbers make pitch ordering, intervals, and voice ranges simple integer arithmetic. Note names are still used at the input/display edges. A shared voice-order convention (bass, tenor, alto, soprano) avoids ambiguity between team components.
+
+10. Why support text, MIDI, and presets?
+All input formats are converted to the same Melody object. This keeps parsing concerns outside the compiler logic and gives the demo several easy entry points. The core compiler then has one stable input type.
+
+11. Why no long-range cost terms right now?
+The shared data structure supports long_range terms, but this compiler currently emits an empty list and uses local plus adjacent transition costs. This keeps the current model aligned with chain rules and the solver interface. It is a known extension point if we add validated non-adjacent music rules.
+
+-----------------------------------------------------------------------
+DEFENSE: LIMITATIONS AND HONEST ANSWERS
+-----------------------------------------------------------------------
+
+“Is this guaranteed to produce good music?”
+“No. It guarantees the selected candidates pass our hard filters, and it minimizes a chosen weighted objective among the retained options. Musical quality depends on the rules, weights, candidate pruning, and solver quality. We treat it as a rule-guided prototype and listen/evaluate the result.”
+
+“Are your rules a complete model of harmony?”
+“No. The compiler captures a selected set of four-part harmony preferences. Some long-context rules are omitted or approximated because the current objective uses adjacent transitions. The implementation labels surrogates, and this is a practical scope choice for a hackathon.”
+
+“Why are some rules approximations?”
+“An exact rule may depend on a longer sequence, which is more expensive or requires higher-order terms. We use clearly identified pairwise surrogates in the current chain model. A next step would be to model selected rules with higher-order or long-range terms and compare the added cost.”
+
+“Could candidate pruning hide the best answer?”
+“Yes. That is the main tradeoff. K limits problem size, but the optimum is only the best within that candidate set. We can test sensitivity by increasing K and measuring candidate counts, runtime, and output quality.”
+
+“Are your weights arbitrary?”
+“They are hand-set relative preferences for the demo styles, not learned or universally validated values. They make the behavior configurable and interpretable. A stronger evaluation would tune them with expert feedback and compare outputs across styles.”
+
+“Does lower normalized energy mean the same thing across different songs?”
+“Within a compiled problem, multiplying by energy_scale recovers raw weighted cost. Because each melody/style can have a different scale and candidate set, normalized energies should not be compared directly across unrelated inputs as if they were a universal quality score.”
+
+“Why can a hard-filter rule also appear as a score?”
+“The scoring/checking layer documents the rule and keeps the model explicit. For current candidates, a hard-filtered property should not be violated, so its term is usually zero. If we later relax candidate filtering, its cost can still matter.”
+
+“How do you know the costs are correct?”
+“We validate the problem shape and use independent rule-counting checks in tests. The key invariant is that the weighted rule breakdown and CompiledProblem energy agree for a selection. That checks implementation consistency; it does not prove the musical rules themselves are artistically ideal.”
+
+“How would you improve it next?”
+“Measure candidate pruning quality at different K values; evaluate outputs with musicians/listeners; tune style weights; model more longer-context rules; and report both objective costs and practical runtime. We would also compare the quantum solver against exact or heuristic classical baselines.”
+
+-----------------------------------------------------------------------
+HOW TO EXPLAIN ONE FUNCTION UNDER PRESSURE
+-----------------------------------------------------------------------
+
+compile_melody(melody, style, K):
+- Resolve the style name or validate custom rule weights.
+- Build context once (key, mode, soprano per slot, ranges, cadence).
+- Generate candidates for every slot.
+- For each candidate, sum weighted unary rule costs into h.
+- For each pair of candidates in adjacent slots, sum pairwise costs into W.
+- Normalize h and W together by one shared maximum, retaining the scale.
+- Construct and validate CompiledProblem, then return it.
+
+A useful example:
+“Suppose slot t has three candidates and slot t+1 has two. h[t] has three values. W[t] is a 3-by-2 matrix: each cell answers ‘what is the transition cost if I choose this first voicing and then that second voicing?’ The solver's job is to choose one index per slot while minimizing the sum.”
+
+CODE-DEFENSE HABIT
+When defending a choice, state (1) the problem it addresses, (2) the tradeoff it introduces, and (3) how you would evaluate or improve it. This sounds more credible than claiming the design is perfect.
+

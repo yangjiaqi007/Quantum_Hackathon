@@ -53,6 +53,7 @@ class RunOptions(Model):
 
 class HarmonizeRequest(Model):
     melody: MelodyInput
+    inversions: list[str | None] | None = None
     tempo: int = Field(default=100, ge=30, le=240, strict=True)
     style: Literal['chorale', 'strict', 'jazz_loose'] = 'chorale'
     run: RunOptions = Field(default_factory=RunOptions)

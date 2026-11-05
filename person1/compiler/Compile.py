@@ -17,6 +17,7 @@ Python's built-in compile().
 from __future__ import annotations
 
 import json
+import re
 from typing import Dict, List, Sequence, Union
 
 import numpy as np
@@ -26,6 +27,36 @@ from .Rules import ALL_RULES, RULES_BY_NAME, build_context
 from Schema import CompiledProblem, Melody, Voicing
 from .Weights import (get_weights, normalize_costs, pairwise_breakdown,
                       unary_breakdown)
+from .Theory import chord_vocabulary
+
+
+def _parse_inversion_request(value, tonic, mode):
+    """Parse figured-bass labels such as I6, I64, V65, V43, V42.
+
+    Empty/None means unconstrained. The accepted chord name must exist in the
+    current key; seventh-chord figures map to the corresponding V7 chord.
+    """
+    if value is None or str(value).strip() in ("", "-"):
+        return None
+    token = str(value).strip()
+    match = re.fullmatch(r"(viio|iio|VIIo|III|VII|VI|IV|V|II|I|vi|iv|iii|ii|i)(65|43|42|64|6|7)?", token)
+    if not match:
+        raise ValueError(f"Invalid inversion {token!r}; use Roman-numeral forms such as I6, I64, V65, V43, V42, or - for automatic.")
+    label, figure = match.groups()
+    # These spellings refer to a seventh chord even when the Roman numeral is V.
+    if figure in ("65", "43", "42"):
+        label = label + "7"
+        inv = {"65": 1, "43": 2, "42": 3}[figure]
+    else:
+        if figure == "7":
+            label = label + "7"
+        inv = {None: 0, "7": 0, "6": 1, "64": 2}[figure]
+    if label not in chord_vocabulary(tonic, mode):
+        raise ValueError(f"Chord {label} is not available in this key/mode.")
+    chord = chord_vocabulary(tonic, mode)[label]
+    if inv >= len(chord.pcs):
+        raise ValueError(f"{token} requests an inversion unavailable for chord {label}.")
+    return label, inv
 
 
 def _resolve_weights(style: Union[str, Dict[str, float]]):
@@ -42,11 +73,17 @@ def _resolve_weights(style: Union[str, Dict[str, float]]):
 
 def compile_melody(melody: Melody, style: Union[str, Dict[str, float]] = "chorale",
                    K: int = DEFAULT_K, ranges=None,
-                   on_unfit: str = "nearest") -> CompiledProblem:
+                   on_unfit: str = "nearest", inversions=None) -> CompiledProblem:
     style_name, weights = _resolve_weights(style)
     ctx = build_context(melody, ranges)
+    requested = None
+    if inversions is not None:
+        if len(inversions) != len(ctx.soprano):
+            raise ValueError(f"Expected {len(ctx.soprano)} inversion entries (one per chord slot), got {len(inversions)}")
+        requested = [_parse_inversion_request(x, melody.tonic, melody.mode) for x in inversions]
     candidates = generate_candidates(melody, style=style_name, K=K, ctx=ctx,
-                                     weights=weights, on_unfit=on_unfit)
+                                     weights=weights, on_unfit=on_unfit,
+                                     desired_inversions=requested)
     n = len(candidates)
     names = [r.name for r in ALL_RULES]
 

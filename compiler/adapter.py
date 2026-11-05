@@ -10,6 +10,6 @@ from person1.compiler.Compile import compile_melody as _compile
 from person1.compiler.Melodies import slot_durations
 
 
-def compile_melody(melody, *, style="chorale", K=4):
-    problem = _compile(melody, style=style, K=K)
+def compile_melody(melody, *, style="chorale", K=4, inversions=None):
+    problem = _compile(melody, style=style, K=K, inversions=inversions)
     return Compilation(problem=problem, slot_durations=slot_durations(melody))

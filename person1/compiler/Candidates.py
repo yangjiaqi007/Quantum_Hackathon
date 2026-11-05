@@ -185,7 +185,7 @@ def _chords_for(soprano: int, t: int, ctx: RuleContext, on_unfit: str) -> List[C
 
 def generate_slot_candidates(soprano: int, t: int, ctx: RuleContext,
                              weights: Dict[str, float], K: int = DEFAULT_K,
-                             on_unfit: str = "nearest") -> List[Voicing]:
+                             on_unfit: str = "nearest", desired_inversion=None) -> List[Voicing]:
     chords = _chords_for(soprano, t, ctx, on_unfit)
     chord_by_name = {c.name: c for c in chords}
 
@@ -193,12 +193,19 @@ def generate_slot_candidates(soprano: int, t: int, ctx: RuleContext,
     for strict in (True, False):                    # relax the no-unison rule only if needed
         for chord in chords:
             for v in enumerate_voicings(soprano, chord, ctx, strict=strict):
+                if desired_inversion is not None:
+                    label, inversion_index = desired_inversion
+                    if v.chord != label or inversion(v.bass, chord_by_name[v.chord]) != inversion_index:
+                        continue
                 score = (weighted_unary(v, t, ctx, weights)
                          + prior_penalty(v, chord_by_name[v.chord], t, ctx))
                 scored.append((score, v))
         if scored:
             break
     if not scored:
+        if desired_inversion is not None:
+            label, inversion_index = desired_inversion
+            raise ValueError(f"slot {t}: requested {label} inversion {inversion_index} has no valid voicing for this melody note and voice ranges")
         raise ValueError(f"slot {t}: no voicing of soprano {midi_to_name(soprano)} "
                          f"satisfies the range and spacing limits")
 
@@ -213,11 +220,14 @@ def generate_slot_candidates(soprano: int, t: int, ctx: RuleContext,
 
 def generate_candidates(melody: Melody, style: str = "chorale", K: int = DEFAULT_K,
                         ctx: RuleContext = None, weights: Dict[str, float] = None,
-                        on_unfit: str = "nearest") -> List[List[Voicing]]:
+                        on_unfit: str = "nearest", desired_inversions=None) -> List[List[Voicing]]:
     """candidates[t][k] for the whole melody."""
     ctx = ctx or build_context(melody)
     weights = weights or get_weights(style)
-    return [generate_slot_candidates(s, t, ctx, weights, K, on_unfit)
+    if desired_inversions is not None and len(desired_inversions) != len(ctx.soprano):
+        raise ValueError(f"Expected {len(ctx.soprano)} inversion entries (one per chord slot), got {len(desired_inversions)}")
+    return [generate_slot_candidates(s, t, ctx, weights, K, on_unfit,
+                                     desired_inversions[t] if desired_inversions else None)
             for t, s in enumerate(ctx.soprano)]
 
 

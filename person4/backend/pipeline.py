@@ -117,7 +117,8 @@ def plan_windows(problem, size, qubit_limit):
     return windows
 
 
-def rank_sampled_paths(problem, window_choices, *, limit=3, beam_width=32):
+def rank_sampled_paths(problem, window_choices, *, limit=3, beam_width=32,
+                       distinct_progressions=True):
     """Rank complete paths stitched from feasible samples returned by each window.
 
     This bounded sample search returns good candidates, not a guarantee of the global top-k.
@@ -136,10 +137,19 @@ def rank_sampled_paths(problem, window_choices, *, limit=3, beam_width=32):
         expanded = {prefix + tuple(choice) for prefix in beam for choice in choices}
         beam = sorted(expanded, key=lambda path: (partial_energy(path), path))[:beam_width]
     ranked = sorted(beam, key=lambda path: (problem.energy(path), path))
-    # Distinct voicings can spell the same chord progression. Prefer alternatives
-    # with different chord labels so the UI presents genuinely different harmony.
+    # Default mode prefers different chord progressions. With user-specified
+    # chords, distinct paths are useful even when their chord labels are fixed.
     distinct, seen_progressions = [], set()
+    seen_paths = set()
     for path in ranked:
+        if not distinct_progressions:
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            distinct.append(path)
+            if len(distinct) >= limit:
+                break
+            continue
         progression = tuple(str(problem.candidates[t][candidate].chord)
                             for t, candidate in enumerate(path))
         if progression in seen_progressions:
@@ -163,7 +173,7 @@ def run_pipeline(request, settings, progress):
         compile_melody = load_callable(settings.compiler_callable)
         solve = load_callable(settings.solver_callable)
     progress({'stage': 'Preparing harmony choices', 'completed_windows': 0, 'total_windows': None})
-    compilation = compile_melody(melody, style=request.style)
+    compilation = compile_melody(melody, style=request.style, inversions=request.inversions)
     validate_compilation(compilation, melody)
     p = compilation.problem
     windows = plan_windows(p, request.run.window_size, request.run.max_qubits)
@@ -228,10 +238,22 @@ def run_pipeline(request, settings, progress):
             onset += float(duration)
         return output
 
-    candidates = sorted(set([tuple(selection), *rank_sampled_paths(p, window_choices, limit=32)]),
+    custom_progression = bool(request.inversions and any(
+        value is not None and str(value).strip() not in ('', '-')
+        for value in request.inversions
+    ))
+    candidates = sorted(set([tuple(selection), *rank_sampled_paths(
+        p, window_choices, limit=32, distinct_progressions=not custom_progression)]),
                         key=lambda path: (p.energy(path), path))
     sampled_paths, seen_progressions = [], set()
     for path in candidates:
+        if custom_progression:
+            if tuple(path) in sampled_paths:
+                continue
+            sampled_paths.append(path)
+            if len(sampled_paths) == 3:
+                break
+            continue
         progression = tuple(str(p.candidates[t][candidate].chord)
                             for t, candidate in enumerate(path))
         if progression in seen_progressions:
