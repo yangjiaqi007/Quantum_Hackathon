@@ -50,6 +50,10 @@ coverage.xml
 *.lcov
 .hypothesis/
 .pytest_cache/
+
+# Generated score, MIDI, MusicXML, and audio exports from the notebook UI
+/p5_output/
+/person5/p5_output/
 cover/
 
 # Translations

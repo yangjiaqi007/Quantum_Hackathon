@@ -117,6 +117,40 @@ def plan_windows(problem, size, qubit_limit):
     return windows
 
 
+def rank_sampled_paths(problem, window_choices, *, limit=3, beam_width=32):
+    """Rank complete paths stitched from feasible samples returned by each window.
+
+    This bounded sample search returns good candidates, not a guarantee of the global top-k.
+    """
+    beam = [()]
+
+    def partial_energy(selection):
+        n = len(selection)
+        value = sum(float(problem.h[t][selection[t]]) for t in range(n))
+        value += sum(float(problem.W[t][selection[t], selection[t + 1]]) for t in range(n - 1))
+        value += sum(c.weight for c in problem.long_range if c.s < n
+                     and selection[c.t] == c.k and selection[c.s] == c.l)
+        return value
+
+    for choices in window_choices:
+        expanded = {prefix + tuple(choice) for prefix in beam for choice in choices}
+        beam = sorted(expanded, key=lambda path: (partial_energy(path), path))[:beam_width]
+    ranked = sorted(beam, key=lambda path: (problem.energy(path), path))
+    # Distinct voicings can spell the same chord progression. Prefer alternatives
+    # with different chord labels so the UI presents genuinely different harmony.
+    distinct, seen_progressions = [], set()
+    for path in ranked:
+        progression = tuple(str(problem.candidates[t][candidate].chord)
+                            for t, candidate in enumerate(path))
+        if progression in seen_progressions:
+            continue
+        seen_progressions.add(progression)
+        distinct.append(path)
+        if len(distinct) >= limit:
+            break
+    return distinct
+
+
 def run_pipeline(request, settings, progress):
     started = perf_counter()
     mock = request.run.backend == 'mock'
@@ -140,7 +174,7 @@ def run_pipeline(request, settings, progress):
                                                  seed=request.run.seed, settings=settings)
         except HardwareConfigurationError as exc:
             raise PipelineError(str(exc)) from exc
-    selection, params, window_reports = [], None, []
+    selection, params, window_reports, window_choices = [], None, [], []
     for i, (start, stop) in enumerate(windows):
         progress({'stage': f'Solving window {i + 1} of {len(windows)}',
                   'completed_windows': i, 'total_windows': len(windows)})
@@ -150,6 +184,17 @@ def run_pipeline(request, settings, progress):
         validate_result(window, result, mock=mock)
         if not mock and result.solver != request.run.solver:
             raise PipelineError('Solver returned a different algorithm than requested.')
+        choices = []
+        for sample in result.samples:
+            candidate = tuple(int(k) for k in sample.selection)
+            if len(candidate) == stop - start and candidate not in choices:
+                choices.append(candidate)
+            if len(choices) >= 8:
+                break
+        best_window = tuple(int(k) for k in result.best)
+        if best_window not in choices:
+            choices.insert(0, best_window)
+        window_choices.append(choices)
         selection.extend(int(k) for k in result.best)
         # A changed window width may require a different parameter layout.
         # The adapter owns accepting or discarding these suggested angles.
@@ -165,25 +210,63 @@ def run_pipeline(request, settings, progress):
                   'completed_windows': i + 1, 'total_windows': len(windows)})
     progress({'stage': 'Checking the complete harmony', 'completed_windows': len(windows),
               'total_windows': len(windows)})
-    voicings = p.decode(selection)
-    quality = build_quality_report(p, selection)
+    def checked_quality(path):
+        report = build_quality_report(p, path)
+        if settings.checker_callable and not mock:
+            counts = load_callable(settings.checker_callable)(melody, p.decode(path), compilation.slot_durations)
+            if not isinstance(counts, dict) or any(not isinstance(v, int) or v < 0 for v in counts.values()):
+                raise PipelineError('Rule checker must return nonnegative integer counts by rule name.')
+            report['rule_violation_counts'] = counts
+        return report
+
+    def make_slots(path):
+        output, onset = [], 0.0
+        for t, (v, duration) in enumerate(zip(p.decode(path), compilation.slot_durations)):
+            output.append({'slot': t, 'onset': onset, 'duration': float(duration),
+                           'pitches': [int(x) for x in v.pitches], 'chord': v.chord,
+                           'candidate_index': path[t]})
+            onset += float(duration)
+        return output
+
+    candidates = sorted(set([tuple(selection), *rank_sampled_paths(p, window_choices, limit=32)]),
+                        key=lambda path: (p.energy(path), path))
+    sampled_paths, seen_progressions = [], set()
+    for path in candidates:
+        progression = tuple(str(p.candidates[t][candidate].chord)
+                            for t, candidate in enumerate(path))
+        if progression in seen_progressions:
+            continue
+        seen_progressions.add(progression)
+        sampled_paths.append(path)
+        if len(sampled_paths) == 3:
+            break
+    selection = list(sampled_paths[0])
+    quality = checked_quality(selection)
     if mock:
         quality['verdict'] = 'Development fixture only. No quantum computation or musical validation was performed.'
-    if settings.checker_callable and not mock:
-        # Independent checker returns {rule_name: nonnegative violation_count}.
-        counts = load_callable(settings.checker_callable)(melody, voicings, compilation.slot_durations)
-        if not isinstance(counts, dict) or any(not isinstance(v, int) or v < 0 for v in counts.values()):
-            raise PipelineError('Rule checker must return nonnegative integer counts by rule name.')
-        quality['rule_violation_counts'] = counts
-    slots, onset = [], 0.0
+
+    def window_energies(path):
+        energies = []
+        for start, stop in windows:
+            subproblem = p.window(start, stop, fixed=dict(enumerate(path[:start])))
+            energies.append(float(subproblem.energy(path[start:stop])))
+        return energies
+
+    best_window_energies = window_energies(selection)
+    for row, energy in zip(window_reports, best_window_energies):
+        row['energy'] = energy
+    alternatives = []
+    for rank, path in enumerate(sampled_paths, 1):
+        if tuple(path) == tuple(selection):
+            continue
+        alternatives.append({'rank': rank, 'energy': float(p.energy(path)),
+                             'window_energies': window_energies(path),
+                             'slots': make_slots(path), 'quality_report': checked_quality(path)})
+    slots = make_slots(selection)
     voices = {name: [] for name in VOICE_NAMES}
-    for t, (v, duration) in enumerate(zip(voicings, compilation.slot_durations)):
-        slots.append({'slot': t, 'onset': onset, 'duration': float(duration),
-                      'pitches': [int(x) for x in v.pitches], 'chord': v.chord,
-                      'candidate_index': selection[t]})
+    for row in slots:
         for j, name in enumerate(VOICE_NAMES):
-            voices[name].append({'midi': int(v.pitches[j]), 'onset': onset, 'duration': float(duration)})
-        onset += float(duration)
+            voices[name].append({'midi': row['pitches'][j], 'onset': row['onset'], 'duration': row['duration']})
     # Keep original soprano articulation instead of retriggering long notes at
     # each harmonic slot. Lower voices remain available at slot resolution.
     onset, soprano = 0.0, []
@@ -199,6 +282,7 @@ def run_pipeline(request, settings, progress):
         'title': melody.title, 'tempo': request.tempo, 'tonic': melody.tonic,
         'mode': melody.mode, 'time_signature': list(melody.time_signature),
         'voice_order': list(VOICE_NAMES), 'voices': voices, 'slots': slots,
+        'alternatives': alternatives,
         'execution': {'mode': request.run.backend, 'is_mock': mock,
                       'pipeline_version': settings.pipeline_version,
                       'elapsed_seconds': perf_counter() - started,

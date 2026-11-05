@@ -29,6 +29,8 @@ def p5_synth_wav(sc, voices=(0, 1, 2, 3), tempo=None, sr=None):
         env[rel0:] = p5_np.linspace(1.0, 0.0, n - rel0) ** 2
         i0 = int(t0 * sr)
         for v in voices:
+            if v == 3 and getattr(s, "soprano_rest", False):
+                continue
             f = p5_midi_hz(s.pitches[v])
             wave = sum(a * p5_np.sin(2 * p5_math.pi * f * (k + 1) * tt)
                        for k, a in enumerate(P5_HARMONICS) if f * (k + 1) < sr * 0.45)

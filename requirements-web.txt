@@ -1,0 +1,10 @@
+# Full local notebook UI and QAOA API environment.
+-r requirements-quantum.txt
+jupyterlab>=4,<5
+ipykernel>=7,<8
+ipywidgets>=8.1,<9
+matplotlib>=3.9,<4
+music21>=10,<11
+pylatexenc>=2.11,<3
+nbformat>=5.10,<6
+scipy>=1.14,<2

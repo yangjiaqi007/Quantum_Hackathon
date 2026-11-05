@@ -40,7 +40,10 @@ def p5_to_m21(sc, marks=None):
                     meas.paddingLeft = sc.bar_len - sc.pickup
             for si, beats, tie_in, tie_out in pieces:
                 slot = sc.slots[si]
-                n = m21.note.Note(p5_m21_name(slot.pitches[v], sc.key))
+                if v == 3 and getattr(slot, "soprano_rest", False):
+                    n = m21.note.Rest()
+                else:
+                    n = m21.note.Note(p5_m21_name(slot.pitches[v], sc.key))
                 n.quarterLength = beats
                 if tie_in and tie_out:
                     n.tie = m21.tie.Tie("continue")

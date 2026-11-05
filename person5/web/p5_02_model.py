@@ -9,6 +9,7 @@ class P5Slot:
     pitches: tuple                 # (bass, tenor, alto, soprano) as MIDI numbers
     beats: float = 1.0             # duration in quarter notes
     chord: str = ""                # optional Roman-numeral label such as "V7"
+    soprano_rest: bool = False      # preserve a written soprano rest through rendering/export
 
 
 @p5_dataclass
@@ -143,7 +144,7 @@ def p5_sanity(sc, melody=None, limit=5):
     w = []
     notes = (melody or {}).get("notes")
     if notes and len(notes) == len(sc.slots):
-        bad = [i + 1 for i, ((m, _), s) in enumerate(zip(notes, sc.slots)) if s.pitches[3] != m]
+        bad = [i + 1 for i, ((m, _), s) in enumerate(zip(notes, sc.slots)) if m is not None and s.pitches[3] != m]
         if bad:
             w.append(f"Soprano differs from the input melody at slot(s) {bad[:8]} - the solver must keep the soprano fixed.")
     elif notes:

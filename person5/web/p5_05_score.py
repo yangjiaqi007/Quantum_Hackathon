@@ -64,6 +64,8 @@ def p5_engrave_png(sc, marks=None, windows=None, title=None, width_in=13.5, dpi=
             if tie_in:
                 continue
             for v in range(4):
+                if v == 3 and getattr(sc.slots[si], "soprano_rest", False):
+                    continue
                 L, alt, o = p5_spell(sc.slots[si].pitches[v], key)
                 if alt != state.get((L, o), sig.get(L, 0)):
                     plan[(mi, pi, v)] = alt
@@ -174,15 +176,29 @@ def p5_engrave_piece(ax, sc, plan, mi, pi, si, beats, tie_in, tie_out, xc, s, Y,
     for vu, vd, mid, treble in ((3, 2, 2.0, True), (1, 0, -4.0, False)):
         info = {}
         for v in (vu, vd):
+            if v == 3 and getattr(slot, "soprano_rest", False):
+                continue
             L, alt, o = p5_spell(slot.pitches[v], key)
             step = 7 * o + P5_LETTERS.index(L)
             info[v] = (step, p5_step_y(step))
         dx = {vu: 0.0, vd: 0.0}
-        unison = info[vu][0] == info[vd][0]
-        if abs(info[vu][0] - info[vd][0]) == 1:
+        unison = vu in info and vd in info and info[vu][0] == info[vd][0]
+        if vu in info and vd in info and abs(info[vu][0] - info[vd][0]) == 1:
             dx[vu if info[vu][0] > info[vd][0] else vd] = 1.15
         accs = []
+        if vu == 3 and getattr(slot, "soprano_rest", False):
+            rest_col = "#d62728" if si in marks else "black"
+            rest_path = p5_Path([(xc - 0.2, Y(3.0, s)), (xc + 0.55, Y(2.2, s)),
+                                 (xc - 0.25, Y(1.45, s)), (xc + 0.35, Y(0.6, s)),
+                                 (xc + 0.05, Y(0.15, s)), (xc + 0.75, Y(-0.35, s)),
+                                 (xc + 0.15, Y(-0.5, s))],
+                                [p5_Path.MOVETO, p5_Path.CURVE3, p5_Path.CURVE3,
+                                 p5_Path.CURVE3, p5_Path.CURVE3, p5_Path.CURVE3, p5_Path.CURVE3])
+            ax.add_patch(p5_PathPatch(rest_path, facecolor="none", edgecolor=rest_col,
+                                      lw=0.28 * pt, zorder=4))
         for v in (vu, vd):
+            if v not in info:
+                continue
             step, y = info[v]
             red = si in marks and (marks[si] is None or v in marks[si])
             col = "#d62728" if red else "black"

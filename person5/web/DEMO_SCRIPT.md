@@ -32,7 +32,7 @@ The judges score: technical soundness, creative thinking, clear explanation, tea
 
 ## Live demo steps (P5, 90 seconds)
 
-1. Panel is already open. Melody: **Ode to Joy**, solver **xy_qaoa**. Say: "Style is a preset plus a strictness slider that scales all rule weights."
+1. Panel is already open. Melody: **Ode to Joy**. Say: "The style preset is Bach chorale and the solver is standard QAOA."
 2. Click **Run harmonization**. While it runs: "The progress bar follows the windows."
 3. *Score & audio* tab: point to the soprano (input) and the three new voices. Press **Soprano only**, then **Full chorale**. "You can *hear* whether it is right — that is why music is a good benchmark."
 4. If a note is red: "Red notes take part in a violated rule."
@@ -46,7 +46,7 @@ The judges score: technical soundness, creative thinking, clear explanation, tea
 |---|---|
 | Run is slow / queue / token expired | Switch to the cached run or the saved screenshots; say "this is the recorded run from earlier today" (be honest about it) |
 | No sound | Open `p5_output/*.wav` directly, or play the exported MIDI in MuseScore |
-| Widgets do not render | Scroll to the static showcase cell `p5_demo_showcase()` — its outputs are saved in the notebook |
+| Widgets do not render | Re-run the final `p5_launch()` cell or restart the notebook kernel and run all cells |
 | Red MOCK banner appears | Stop: the real `harmonize_pipeline` is not defined. Fix before presenting; never present mock output as quantum results |
 
 ## Likely judge questions — honest answers

@@ -8,8 +8,6 @@ def p5_mock_candidates(sop, tonic, k_keep=8, want_tonic=False):
     rel = (sop - tonic) % 12
     out = []
     for name, cp in P5_MOCK_CHORDS.items():
-        if rel not in cp:
-            continue
         tones = [(tonic + c) % 12 for c in cp]
         for b in [x for x in range(40, 61) if x % 12 in tones[:2]]:
             for t in [x for x in range(48, 70) if x % 12 in tones and x > b]:
@@ -18,6 +16,7 @@ def p5_mock_candidates(sop, tonic, k_keep=8, want_tonic=False):
                         continue
                     pcs = {b % 12, t % 12, a % 12, sop % 12}
                     cost = (0 if tones[0] in pcs and tones[1] in pcs else 6) + (0 if b % 12 == tones[0] else 2)
+                    cost += 12 if rel not in cp else 0     # allow chromatic soprano notes in the UI placeholder
                     cost += 2 * [b, t, a, sop].count(tones[1]) % 3
                     cost += 8 if (want_tonic and name != "I") else 0     # start and end on the tonic chord
                     out.append((cost, name, (b, t, a, sop)))

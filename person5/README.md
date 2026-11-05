@@ -3,7 +3,7 @@
 **Bridging music theory and QAOA with Qiskit** — Qiskit Fall Fest 2026, University of Waterloo.
 
 Give the tool a soprano melody. It writes the alto, tenor and bass: the rules of four-part harmony are compiled into a
-penalty Hamiltonian, a swappable solver (classical Viterbi, QAOA, or constraint-preserving XY-mixer QAOA) finds a
+penalty Hamiltonian, standard QAOA finds a
 low-energy voicing, and you get a score, audio you can listen to, MIDI/MusicXML files and an honest quantum resource report.
 Nobody has to write a circuit.
 
@@ -22,12 +22,41 @@ jupyter lab project.ipynb      # or open it in VS Code
 
 1. Run the notebook top to bottom.
 2. Run `p5_selfcheck()` — it prints a ✔/✘ checklist (dependencies, pipeline hook, score / audio / export, 4-note end-to-end run).
-3. Use the panel from `p5_launch()`: choose *Ode to Joy*, *O Canada*, type notes (`E4 E4 F4 G4`, durations as `E4:1.5`), click the
-   on-screen note buttons, or upload a MIDI file. Pick a style, a solver and press **Run harmonization**.
+3. Use the panel from `p5_launch()`: choose *Ode to Joy*, *O Canada*, type notes (`E4 E4 F4 G4`, durations as `E4:1.5` or `E4:q.`; rests as `R:q`), click the
+   on-screen note buttons, or upload a MIDI file. The style is fixed to Bach chorale and the solver is standard QAOA; press **Run harmonization**.
 4. The *Score & audio*, *Quantum report* and *Export* tabs fill in. Files are also saved to `p5_output/`.
 
-`p5_launch("zh")` switches the interface to Chinese. `p5_demo_showcase()` renders both demo melodies as static outputs that stay
-in the saved notebook.
+`p5_launch("zh")` switches the interface to Chinese. `p5_demo_showcase()` can optionally render both demo melodies in the current session.
+
+### Run the interactive panel through the QAOA API
+
+For live harmonization, start the API in one PowerShell terminal from the repository root (the folder containing `person4`):
+
+```powershell
+$env:PIPELINE_MODE = "team"
+$env:COMPILER_CALLABLE = "compiler.adapter:compile_melody"
+$env:SOLVER_CALLABLE = "person2.quantum.adapter:solve"
+$env:PIPELINE_VERSION = "p5-api-v2"
+.\.venv\Scripts\python.exe -m uvicorn person4.backend.main:app --host 127.0.0.1 --port 8000 --workers 1
+```
+
+Open `http://127.0.0.1:8000/capabilities` and confirm `aer` appears under `configured_backends`. In another terminal, start
+Jupyter with the repository's Python (this avoids the stale Windows `jupyter-lab.exe` launcher):
+
+```powershell
+.\.venv\Scripts\python.exe -m jupyter lab person5/project.ipynb
+```
+
+Restart the notebook kernel, run all cells, expand **Advanced quantum settings**, keep **Use local quantum API** checked,
+choose **Aer simulator**, and click **Run harmonization**. The website uses standard QAOA. The widget polls the API job and then
+shows its score, generated WAV, and per-window quantum resources. When available, the **Harmony choice** selector compares up to three low-energy sampled paths with different chord progressions; each choice updates the score, playback, report, and exports. The candidates come from sampled window solutions, so three distinct progressions are not guaranteed. To test the connection before harmonizing, open
+`http://127.0.0.1:8000/docs` or the `/capabilities` page. If the API is stopped or still in mock mode, the UI displays the
+connection/configuration error; it does not substitute mock output. The offline mock remains available by unchecking **Use local
+quantum API**.
+
+IBM hardware is an explicit backend choice. Configure `IBM_ENABLED`, `IBM_TOKEN`, `IBM_INSTANCE`, and `IBM_BACKEND` only in the
+API server's environment, confirm `ibm` appears in `/capabilities`, and then select it in the widget. Keep the token out of the
+notebook and source files. **Noisy fake backend** uses a local calibration snapshot and does not contact IBM.
 
 ## How it works
 
@@ -35,7 +64,7 @@ in the saved notebook.
 melody (+ style, solver)
   → candidate voicings per chord slot           (Part 1)
   → rules as penalty terms  h[t][k], W[t][k][l] (Part 1)  → QuadraticProgram → QUBO → Ising   (Qiskit Optimization)
-  → solver: viterbi | qaoa | xy_qaoa, windows of 3-4 slots, warm-started angles (Parts 2-3)
+  → solver: standard qaoa, windows of 3-4 slots, warm-started angles (Part 2)
   → resource report: qubits, depth, two-qubit gates, energy per window, violations            (Part 4)
   → decode → score (PNG) + audio (WAV) + MIDI + MusicXML + report                             (Part 5)
 ```
@@ -48,7 +77,7 @@ melody (+ style, solver)
 | 4 | Backends / hardware, resource and honesty report |
 | 5 | Interface, score rendering, audio, export, report display, README, demo, slides |
 
-### Part 5 in detail (cells `P5-00 … P5-14`)
+### Part 5 in detail (cells `P5-00 … P5-15`)
 
 | Cell | What it does |
 |---|---|
@@ -61,7 +90,8 @@ melody (+ style, solver)
 | P5-07 | The only place that calls the team pipeline; tolerant to different parameter names |
 | P5-08 / 09 | Display panels and the ipywidgets interface |
 | P5-10 | **Mock** classical harmonizer for testing — delete once the real pipeline is in the notebook |
-| P5-11 | Static showcase and `p5_selfcheck()` |
+| P5-11 | Optional demo showcase and `p5_selfcheck()` |
+| P5-15 | Local FastAPI job submission, progress polling, and API result adaptation for the interactive panel |
 
 All names defined by Part 5 start with `p5_` / `P5` (including import aliases), so the cells can be pasted into the team notebook
 without colliding with other parts.
@@ -69,7 +99,7 @@ without colliding with other parts.
 ## Integration contract (Parts 1–4 ↔ Part 5)
 
 ```python
-def harmonize_pipeline(melody, style="bach_chorale", style_weight=1.0, solver="xy_qaoa", progress=None,
+def harmonize_pipeline(melody, style="bach_chorale", style_weight=1.0, solver="qaoa", progress=None,
                        layers_p=2, shots=2048, window_size=3, noisy=False):
     ...
     return result, report
@@ -98,7 +128,7 @@ efficiently**. The project ships Viterbi as the baseline and **does not claim a 
 
 ## Known limitations
 
-* The score renderer is deliberately simple: no beams, rests or tuplets; notes crossing a barline are tied.
-* Melodies typed in the interface are capped at 40 notes and must be monophonic.
+* The score renderer is deliberately simple: no beams or tuplets; soprano rests and dotted durations are supported, and notes crossing a barline are tied.
+* Melodies typed in the interface are capped at 128 events and must be monophonic.
 * The audio is a simple synthesized timbre, not a recording.
-* If the pipeline is not defined, the interface falls back to the labelled mock and says so in the report.
+* The offline mock can harmonize the two built-in presets, but it remains a labelled classical fixture and is not a quantum result.

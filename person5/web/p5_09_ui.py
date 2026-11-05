@@ -43,19 +43,19 @@ def p5_ui_collect(ui):
         if errs:
             raise ValueError("\n".join(errs[:6]))
     options = {"layers_p": int(ui["p"].value), "shots": int(ui["shots"].value),
-               "window_size": int(ui["window"].value), "noisy": bool(ui["noisy"].value)}
-    return P5Request(melody=melody, style=ui["style"].value, style_weight=float(ui["strict"].value),
-                     solver=ui["solver"].value, options=options, tempo=tempo)
+               "window_size": int(ui["window"].value), "noisy": ui["backend"].value == "noisy",
+               "use_api": bool(ui["use_api"].value), "backend": ui["backend"].value}
+    return P5Request(melody=melody, style=ui["style"].value, style_weight=1.0,
+                     solver="qaoa", options=options, tempo=tempo)
 
 
 def p5_safe_panel(out, fn, run):
-    """Show a panel inside an Output widget; a bug in one panel must not blank the others."""
-    with out:
-        try:
-            fn(run)
-        except Exception:
-            p5_display(p5_HTML(p5_banner_html("<b>Display error</b><pre style='font-size:11px;overflow-x:auto'>"
-                                              + p5_html.escape(p5_tb.format_exc()) + "</pre>", "err")))
+    """Assign a complete HTML value; avoids Output capture races in callbacks."""
+    try:
+        out.value = fn(run)
+    except Exception:
+        out.value = p5_banner_html("<b>Display error</b><pre style='font-size:11px;overflow-x:auto'>"
+                                   + p5_html.escape(p5_tb.format_exc()) + "</pre>", "err")
 
 
 def p5_build_ui():
@@ -94,32 +94,38 @@ def p5_build_ui():
                                       style={"description_width": "100px"})
     ui["custom_opts"] = W.HBox([ui["key"], ui["ts"], ui["pickup"]])
 
-    ui["style"] = W.Dropdown(options=["strict_counterpoint", "bach_chorale", "jazz_loose"], value="bach_chorale",
+    ui["style"] = W.Dropdown(options=[("Bach chorale", "bach_chorale")], value="bach_chorale", disabled=True,
                              description=p5_t("style_label"), layout=lay("320px"), style=sty)
-    ui["solver"] = W.Dropdown(options=[(p5_t("s_viterbi"), "viterbi"), (p5_t("s_qaoa"), "qaoa"), (p5_t("s_xy"), "xy_qaoa")],
-                              value="xy_qaoa", description=p5_t("solver_label"), layout=lay("470px"), style=sty)
-    ui["strict"] = W.FloatSlider(value=1.0, min=0.1, max=5.0, step=0.1, description=p5_t("strict_label"), layout=lay("470px"), style=sty)
+    ui["solver"] = W.HTML(f'<div style="font-family:system-ui,Arial,sans-serif;margin:4px 0 8px 0">'
+                          f'<span style="display:inline-block;width:130px">{p5_html.escape(p5_t("solver_label"))}</span>'
+                          f'<b>{p5_html.escape(p5_t("s_qaoa"))}</b></div>')
     ui["tempo"] = W.IntSlider(value=100, min=50, max=160, step=2, description=p5_t("tempo_label"), layout=lay("470px"), style=sty)
     ui["p"] = W.IntSlider(value=2, min=1, max=5, description=p5_t("adv_p"), layout=lay("420px"), style=sty)
     ui["shots"] = W.Dropdown(options=[512, 1024, 2048, 4096, 8192], value=2048, description=p5_t("adv_shots"), layout=lay("300px"), style=sty)
     ui["window"] = W.IntSlider(value=3, min=2, max=4, description=p5_t("adv_window"), layout=lay("420px"), style=sty)
-    ui["noisy"] = W.Checkbox(value=False, description=p5_t("adv_noisy"), indent=False)
-    ui["adv"] = W.Accordion(children=[W.VBox([ui["p"], ui["shots"], ui["window"], ui["noisy"]])], selected_index=None)
+    ui["use_api"] = W.Checkbox(value=True, description="Use local quantum API", indent=False)
+    ui["backend"] = W.Dropdown(options=[("Aer simulator", "aer"), ("Noisy fake backend", "noisy"),
+                                        ("IBM Quantum hardware", "ibm")], value="aer",
+                                description="Quantum backend", layout=lay("320px"), style=sty)
+    ui["adv"] = W.Accordion(children=[W.VBox([ui["use_api"], ui["backend"], ui["p"], ui["shots"], ui["window"]])], selected_index=0)
     ui["adv"].set_title(0, p5_t("adv_title"))
 
     ui["preview"] = W.Button(description=p5_t("btn_preview"), icon="volume-up", layout=lay("190px"))
     ui["run"] = W.Button(description=p5_t("btn_run"), button_style="success", icon="play", layout=lay("230px"))
     ui["progress"] = W.IntProgress(value=0, min=0, max=100, layout=lay("260px"))
     ui["status"] = W.Label(value=p5_t("status_ready"))
-    ui["out_score"], ui["out_report"], ui["out_export"] = W.Output(), W.Output(), W.Output()
+    ui["variant"] = W.Dropdown(options=[(p5_t("variant_best"), 0)], value=0,
+                               description=p5_t("variant_label"), disabled=True,
+                               layout=lay("420px"), style=sty)
+    ui["out_score"], ui["out_report"], ui["out_export"] = W.HTML(), W.HTML(), W.HTML()
     ui["tabs"] = W.Tab(children=[ui["out_score"], ui["out_report"], ui["out_export"]])
     for i, k in enumerate(("tab_score", "tab_report", "tab_export")):
         ui["tabs"].set_title(i, p5_t(k))
 
     sec = lambda k: W.HTML(f'<div style="font-family:system-ui,Arial,sans-serif;font-weight:600;margin-top:8px">{p5_html.escape(p5_t(k))}</div>')
     ui["root"] = W.VBox([ui["header"], sec("sec_melody"), ui["melody"], ui["text_box"], ui["midi_box"], ui["custom_opts"],
-                         sec("sec_style"), ui["style"], ui["solver"], ui["strict"], ui["tempo"], ui["adv"],
-                         W.HBox([ui["preview"], ui["run"]]), W.HBox([ui["progress"], ui["status"]]), ui["tabs"]])
+                         sec("sec_style"), ui["style"], ui["solver"], ui["tempo"], ui["adv"],
+                         W.HBox([ui["preview"], ui["run"]]), W.HBox([ui["progress"], ui["status"]]), ui["variant"], ui["tabs"]])
 
     def show_hide(_=None):
         v = ui["melody"].value
@@ -134,8 +140,12 @@ def p5_build_ui():
     def add_note(btn):
         name = btn.description
         tok = name[0] + ui["pal_acc"].value + name[1:]
-        if ui["pal_dur"].value != 1.0:
-            tok += f":{ui['pal_dur'].value:g}"
+        dur = float(ui["pal_dur"].value)
+        dur_text = {0.25: "s", 0.5: "e", 0.75: "e.", 1.5: "q.", 2.0: "h", 3.0: "h.", 4.0: "w"}.get(dur)
+        if dur_text:
+            tok += f":{dur_text}"
+        elif dur != 1.0:
+            tok += f":{dur:g}"
         ui["text"].value = (ui["text"].value.strip() + " " + tok).strip()
     for b in ui["keys"]:
         b.on_click(add_note)
@@ -143,34 +153,57 @@ def p5_build_ui():
     ui["clear"].on_click(lambda _b: setattr(ui["text"], "value", ""))
 
     def on_preview(_b):
-        with ui["out_score"]:
-            p5_clear_output_widget(ui["out_score"])
-            try:
-                req = p5_ui_collect(ui)
-                m = req.melody
-                if not m["notes"]:
-                    p5_display(p5_HTML(p5_banner_html(p5_html.escape(p5_t("no_notes_preset")), "warn")))
-                    return
-                sc = P5Score(slots=[P5Slot((n, n, n, n), b) for n, b in m["notes"]], key=m["key"], time_sig=m["time_sig"],
-                             tempo=m["tempo"], pickup=m["pickup"], title=m["title"])
-                names = " ".join(p5_note_name(n, m["key"]) for n, _ in m["notes"])
-                info = p5_t("parsed", n=len(m["notes"]), key=m["key"], ts=f"{m['time_sig'][0]}/{m['time_sig'][1]}",
-                            beats=sum(b for _, b in m["notes"]))
-                _, warns = p5_validate_melody(m["notes"], m["time_sig"])
-                p5_display(p5_HTML(f'<div style="font-family:system-ui,Arial,sans-serif;color:#222"><b>{p5_html.escape(p5_t("preview_title"))}</b> - '
-                                   f'{p5_html.escape(info)}<br><code>{p5_html.escape(names)}</code></div>'
-                                   + "".join(p5_banner_html(p5_html.escape(w), "warn") for w in warns[:4])
-                                   + p5_audio_html(p5_synth_wav(sc, voices=(3,)), p5_t("audio_sop"))))
-            except Exception as e:
-                p5_display(p5_HTML(p5_banner_html(p5_html.escape(f"{type(e).__name__}: {e}").replace("\n", "<br>"), "err")))
+        try:
+            req = p5_ui_collect(ui)
+            m = req.melody
+            if not m["notes"]:
+                ui["out_score"].value = p5_banner_html(p5_html.escape(p5_t("no_notes_preset")), "warn")
+                ui["tabs"].selected_index = 0
+                return
+            prev = next(n for n, _ in m["notes"] if n is not None)
+            slots = []
+            for n, b in m["notes"]:
+                rest = n is None
+                if not rest:
+                    prev = n
+                slots.append(P5Slot((prev, prev, prev, prev), b, soprano_rest=rest))
+            sc = P5Score(slots=slots, key=m["key"], time_sig=m["time_sig"],
+                         tempo=m["tempo"], pickup=m["pickup"], title=m["title"])
+            names = " ".join("R" if n is None else p5_note_name(n, m["key"]) for n, _ in m["notes"])
+            info = p5_t("parsed", n=len(m["notes"]), key=m["key"], ts=f"{m['time_sig'][0]}/{m['time_sig'][1]}",
+                        beats=sum(b for _, b in m["notes"]))
+            _, warns = p5_validate_melody(m["notes"], m["time_sig"])
+            ui["out_score"].value = (f'<div style="font-family:system-ui,Arial,sans-serif;color:#222"><b>{p5_html.escape(p5_t("preview_title"))}</b> - '
+                                     f'{p5_html.escape(info)}<br><code>{p5_html.escape(names)}</code></div>'
+                                     + "".join(p5_banner_html(p5_html.escape(w), "warn") for w in warns[:4])
+                                     + p5_audio_html(p5_synth_wav(sc, voices=(3,)), p5_t("audio_sop")))
+        except Exception as e:
+            ui["out_score"].value = p5_banner_html(p5_html.escape(f"{type(e).__name__}: {e}").replace("\n", "<br>"), "err")
         ui["tabs"].selected_index = 0
+
+    def show_variant(index=None):
+        best_run = P5_STATE.get("last_run")
+        if best_run is None or best_run.error:
+            return
+        choices = [best_run] + list(best_run.alternatives or [])
+        idx = int(ui["variant"].value if index is None else index)
+        if not 0 <= idx < len(choices):
+            return
+        selected = choices[idx]
+        p5_safe_panel(ui["out_score"], p5_score_panel_html, selected)
+        p5_safe_panel(ui["out_report"], p5_report_panel_html, selected)
+        p5_safe_panel(ui["out_export"], p5_export_panel_html, selected)
+
+    def on_variant_change(change):
+        if change.get("name") == "value" and P5_STATE.get("last_run") is not None:
+            show_variant(change.get("new"))
+
+    ui["variant"].observe(on_variant_change, names="value")
 
     def on_run(_b):
         ui["run"].disabled = ui["preview"].disabled = True
         ui["progress"].value = 0
         ui["status"].value = p5_t("status_running")
-        for o in (ui["out_score"], ui["out_report"], ui["out_export"]):
-            o.clear_output(wait=True)
         try:
             try:
                 req = p5_ui_collect(ui)
@@ -183,9 +216,31 @@ def p5_build_ui():
                         ui["status"].value = str(msg)
                 run = p5_run_request(req, progress)
             P5_STATE["last_run"] = run
-            p5_safe_panel(ui["out_score"], p5_show_score_panel, run)
-            p5_safe_panel(ui["out_report"], p5_show_report_panel, run)
-            p5_safe_panel(ui["out_export"], p5_show_export_panel, run)
+            variants = [run] + list(run.alternatives or [])
+            options = []
+            for i, variant in enumerate(variants):
+                energy = variant.report.get("energy")
+                progression = []
+                slots = variant.score.slots if variant.score is not None else []
+                for slot in slots:
+                    chord = slot.chord
+                    chord = str(chord)
+                    if chord and (not progression or progression[-1] != chord):
+                        progression.append(chord)
+                chord_path = " – ".join(progression[:10])
+                if len(progression) > 10:
+                    chord_path += " – …"
+                label = f"Progression {i + 1}: {chord_path}" if chord_path else f"Progression {i + 1}"
+                if energy is not None:
+                    label += f" (energy {float(energy):.3g})"
+                options.append((label, i))
+            ui["variant"].options = options or [(p5_t("variant_best"), 0)]
+            ui["variant"].value = 0
+            ui["variant"].disabled = bool(run.error) or len(variants) < 2
+            if run.error:
+                p5_safe_panel(ui["out_score"], p5_panel_error_html, run)
+            else:
+                show_variant(0)
             P5_STATE["status"] = "ok" if not run.error else "error: " + run.error
             ui["status"].value = p5_t("status_done", sec=run.seconds) if not run.error else p5_t("status_error")
             ui["tabs"].selected_index = 0
@@ -200,7 +255,7 @@ def p5_build_ui():
 
 
 def p5_clear_output_widget(out):
-    out.clear_output(wait=True)
+    out.value = ""
 
 
 def p5_launch(lang=None):

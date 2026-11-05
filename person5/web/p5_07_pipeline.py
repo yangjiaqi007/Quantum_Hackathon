@@ -23,7 +23,7 @@ class P5Request:
     melody: dict
     style: str = "bach_chorale"
     style_weight: float = 1.0
-    solver: str = "xy_qaoa"
+    solver: str = "qaoa"
     options: dict = p5_field(default_factory=dict)      # layers_p, shots, window_size, noisy
     tempo: int = 90
 
@@ -39,6 +39,7 @@ class P5Run:
     seconds: float = 0.0
     pipeline_name: str = ""
     artifacts: dict = p5_field(default_factory=dict)      # rendered PNG / WAV, filled by P5-08
+    alternatives: list = p5_field(default_factory=list)   # ranked sampled harmony variants
 
 
 def p5_find_pipeline():
@@ -91,11 +92,61 @@ def p5_run_request(req, progress=None):
     run = P5Run(request=req)
     t0 = p5_time.time()
     try:
-        name, fn = p5_find_pipeline()
-        run.pipeline_name = name
-        raw = p5_invoke_pipeline(fn, req, progress)
+        if req.options.get("use_api"):
+            name = "person4 FastAPI QAOA service"
+            run.pipeline_name = name
+            raw = p5_api_harmonize_pipeline(req, progress)
+        else:
+            name, fn = p5_find_pipeline()
+            run.pipeline_name = name
+            solver_melody = dict(req.melody)
+            rest_flags = [m is None for m, _ in (req.melody.get("notes") or [])]
+            if any(rest_flags):
+                carried, previous = [], None
+                for midi, duration in req.melody["notes"]:
+                    if midi is not None:
+                        previous = int(midi)
+                    if previous is None:
+                        raise ValueError("A melody cannot begin with a rest.")
+                    carried.append((previous, duration))
+                solver_melody["notes"] = carried
+            solver_req = P5Request(melody=solver_melody, style=req.style, style_weight=req.style_weight,
+                                   solver=req.solver, options=req.options, tempo=req.tempo)
+            raw = p5_invoke_pipeline(fn, solver_req, progress)
         result, report = p5_split_return(raw)
-        sc = p5_normalize_result(result, req.melody)
+        score_melody = req.melody
+        if req.options.get("use_api") and isinstance(result, dict) and result.get("_p5_input_notes") is not None:
+            score_melody = dict(req.melody)
+            score_melody["notes"] = result["_p5_input_notes"]
+        elif any(m is None for m, _ in (req.melody.get("notes") or [])):
+            score_melody = dict(req.melody)
+            score_melody["notes"] = solver_melody["notes"]
+        sc = p5_normalize_result(result, score_melody)
+        if req.options.get("use_api") and isinstance(result, dict):
+            rest_flags = result.get("_p5_soprano_rests") or []
+            if len(rest_flags) != len(sc.slots):
+                raise RuntimeError("API soprano rest map does not match the returned chord slots.")
+        if len(rest_flags) == len(sc.slots):
+            for slot, is_rest in zip(sc.slots, rest_flags):
+                slot.soprano_rest = bool(is_rest)
+        if req.options.get("use_api") and isinstance(result, dict):
+            for alternative in result.get("_p5_alternatives") or []:
+                alt_melody = dict(req.melody)
+                alt_melody["notes"] = alternative["_p5_input_notes"]
+                alt_score = p5_normalize_result(alternative, alt_melody)
+                alt_rests = alternative.get("_p5_soprano_rests") or []
+                if len(alt_rests) != len(alt_score.slots):
+                    raise RuntimeError("Alternative soprano rest map does not match the returned chord slots.")
+                for slot, is_rest in zip(alt_score.slots, alt_rests):
+                    slot.soprano_rest = bool(is_rest)
+                alt_score.tempo = int(req.tempo or alt_score.tempo)
+                alt_report = dict(report or {})
+                alt_report["energy"] = alternative.get("energy")
+                alt_report["quality_report"] = alternative.get("quality_report") or {}
+                alt_report["rank"] = alternative.get("rank")
+                run.alternatives.append(P5Run(request=req, score=alt_score, report=alt_report,
+                                              warnings=list(alt_score.warnings), seconds=run.seconds,
+                                              pipeline_name=name))
         sc.tempo = int(req.tempo or sc.tempo)
         run.score, run.report, run.warnings = sc, dict(report or {}), list(sc.warnings)
         if name == "p5_mock_pipeline":

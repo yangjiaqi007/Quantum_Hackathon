@@ -3,6 +3,7 @@ import ast, os, sys, symtable, re, tempfile
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import p5_loader
 
 fails = []
@@ -100,6 +101,8 @@ check(nums[0] == 0 and s3.parts[0].flatten().getElementsByClass("KeySignature")[
 # input handling
 notes, errs = ns["p5_parse_melody_text"]("C4 D4 E4:1.5 Bb3 F#5 | G4:1/2 X9")
 check(len(notes) == 6 and len(errs) == 1 and notes[2][1] == 1.5 and notes[3][0] == 58 and notes[4][0] == 78, f"C10 text parser {notes} {errs}")
+dotted, dotted_errs = ns["p5_parse_melody_text"]("C4:q. D4:e. R:q")
+check(not dotted_errs and dotted == [(60, 1.5), (62, 0.75), (None, 1.0)], f"C10b dotted values and rest syntax {dotted} {dotted_errs}")
 check(ns["p5_guess_key"]([(67,1),(69,1),(71,1),(72,1),(74,1),(67,1)]) == "G", "C11 key guess G major")
 e, _ = ns["p5_validate_melody"]([(60,1)] ); check(bool(e), "C12 validation: too few notes")
 e, _ = ns["p5_validate_melody"]([(30,1),(60,1)]); check(bool(e), "C13 validation: out of range")
@@ -143,7 +146,9 @@ check((ns["p5_circuit_png"](qc) or b"")[:4] == b"\x89PNG", "C21 circuit PNG via 
 root = ns["p5_build_ui"]()
 ui = ns["P5_UI"]
 req2 = ns["p5_ui_collect"](ui)
-check(req2.melody["notes"] and len(req2.melody["notes"]) == 30 and req2.solver == "xy_qaoa", "C22 UI collects preset request")
+check(req2.melody["notes"] and len(req2.melody["notes"]) == 30 and req2.solver == "qaoa"
+      and req2.options["use_api"] and req2.options["backend"] == "aer"
+      and ui["style"].options == (("Bach chorale", "bach_chorale"),), "C22 UI collects API QAOA request with Bach chorale only")
 ui["melody"].value = "text"
 req3 = ns["p5_ui_collect"](ui)
 check(req3.melody["source"] == "text" and req3.melody["key"] == "C", f"C23 UI collects custom text, key auto -> {req3.melody['key']}")
@@ -153,10 +158,41 @@ try: ns["p5_ui_collect"](ui); ok = False
 except ValueError: ok = True
 check(ok, "C25 bad text raises a friendly ValueError")
 ui["text"].value = "G4 A4 B4 C5 D5 E5 D5 C5"; ui["melody"].value = "text"
+ui["use_api"].value = False  # exercise the offline button without requiring a running local API
 ui["run"].click()
 check(ns["P5_STATE"]["status"] == "ok" and ns["P5_STATE"]["last_run"].score.key == "C", f"C26 run button end-to-end ({ns['P5_STATE']['status']})")
 ui["melody"].value = "o_canada"; ui["run"].click()
-check(ns["P5_STATE"]["status"].startswith("error") and "Part 1" in ns["P5_STATE"]["status"], "C27 o_canada with mock gives clear error")
+canada_run = ns["P5_STATE"]["last_run"]
+from compiler.melodies import get_preset as get_canonical_preset
+canonical_canada = get_canonical_preset("o_canada")
+canonical_notes = []
+previous = None
+for n in canada_run.request.melody["notes"]:
+    midi, duration = n
+    if midi is not None:
+        previous = midi
+    canonical_notes.append((previous, duration))
+matches_canonical = canonical_notes == [(n.midi, n.duration) for n in canonical_canada.notes]
+check(ns["P5_STATE"]["status"] == "ok" and len(canada_run.score.slots) == len(canada_run.request.melody["notes"])
+      and all(slot.pitches[3] == (note if note is not None else canonical_notes[i][0])
+              for i, (slot, (note, _)) in enumerate(zip(canada_run.score.slots, canada_run.request.melody["notes"])))
+      and matches_canonical and sum(slot.soprano_rest for slot in canada_run.score.slots) == 5,
+      f"C27 O Canada matches Part 1's canonical melody, preserves five rests and harmonizes ({canada_run.error})")
+canada_xml = ns["p5_m21_bytes"](canada_run.score, "musicxml")
+canada_xml_path = os.path.join(rt_dir.name, "canada.musicxml")
+with open(canada_xml_path, "wb") as f: f.write(canada_xml)
+canada_sop = music21.converter.parse(canada_xml_path).parts[0].flatten()
+check(len(list(canada_sop.getElementsByClass(music21.note.Rest))) == 5
+      and len(list(canada_sop.notes)) == 83,
+      "C27b O Canada MusicXML contains five soprano rests and 83 pitched events")
+api_req = ns["P5Request"](melody=ns["p5_make_melody"]([(60, 1), (None, 1), (62, 1)], key="C"),
+                          options={"backend": "aer", "shots": 10, "layers_p": 1})
+api_slots = [{"pitches": [48, 52, 55, 60], "duration": 1},
+             {"pitches": [48, 52, 55, 60], "duration": 1},
+             {"pitches": [48, 52, 55, 62], "duration": 1}]
+api_result, _ = ns["p5_api_adapt_result"]({"slots": api_slots}, {}, api_req, "selftest")
+check(api_result["_p5_soprano_rests"] == [False, True, False],
+      "C27c API adapter retains a rest through returned chord slots")
 ns["P5_LANG"] = "zh"; ns["p5_build_ui"](); ns["P5_LANG"] = "en"
 check(ns["p5_selfcheck"](run_pipeline=True), "C28 p5_selfcheck passes")
 

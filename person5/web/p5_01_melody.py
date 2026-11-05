@@ -9,8 +9,7 @@ P5_SOPRANO_HARD = (55, 88)     # outside -> error
 P5_DUR_LETTERS = {"w": 4.0, "h": 2.0, "q": 1.0, "e": 0.5, "s": 0.25}
 
 # Preset melodies owned by the UI. "text" is in the same syntax users type.
-# O Canada has no text here on purpose: its notes are encoded (and checked against a score) by Part 1,
-# so the UI only sends the preset id and lets the pipeline resolve it.
+# O Canada follows the 28-bar score supplied for this project. Rests are preserved in the UI.
 P5_PRESETS = {
     "ode_to_joy": {
         "label_key": "opt_ode", "title": "Ode to Joy", "key": "C", "time_sig": (4, 4), "pickup": 0.0, "tempo": 100,
@@ -18,8 +17,14 @@ P5_PRESETS = {
                  "E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | D4:1.5 C4:0.5 C4:2"),
     },
     "o_canada": {
-        "label_key": "opt_canada", "title": "O Canada", "key": None, "time_sig": (4, 4), "pickup": 0.0, "tempo": 80,
-        "text": None,
+        "label_key": "opt_canada", "title": "O Canada", "key": "F", "time_sig": (4, 4), "pickup": 0.0, "tempo": 80,
+        "text": ("A4:h C5:q. C5:e | F4:h. G4:q | A4:q Bb4:q C5:q D5:q | G4:h. R:q | "
+                 "A4:h Bb4:q. Bb4:e | C5:h. D5:q | E5:q E5:q D5:q D5:q | C5:h. G4:e. A4:s | "
+                 "Bb4:q. A4:e G4:q A4:e. Bb4:s | C5:q. Bb4:e A4:q Bb4:e. C5:s | D5:q C5:q Bb4:q A4:q | "
+                 "G4:h. G4:e. A4:s | Bb4:q. A4:e G4:q A4:e. Bb4:s | C5:q. Bb4:e A4:q A4:q | "
+                 "G4:q C5:q C5:e Bb4:e A4:e Bb4:e | C5:h. R:q | A4:h C5:q. C5:e | F4:h. R:q | "
+                 "Bb4:h D5:q. D5:e | G4:h. R:q | C5:h C#5:q. C#5:e | D5:q Bb4:q A4:q G4:q | "
+                 "F4:h G4:h | A4:h. R:q | C5:h F5:q. F5:e | D5:q Bb4:q A4:q G4:q | C5:h E4:h | F4:w"),
     },
 }
 
@@ -55,7 +60,7 @@ def p5_spell(midi, key="C"):
     if fifths > 0:
         table = {1: ("C", 1), 3: ("D", 1), 6: ("F", 1), 8: ("G", 1), 10: ("A", 1)}
     elif fifths < 0:
-        table = {1: ("D", -1), 3: ("E", -1), 6: ("G", -1), 8: ("A", -1), 10: ("B", -1)}
+        table = {1: ("C", 1), 3: ("E", -1), 6: ("G", -1), 8: ("A", -1), 10: ("B", -1)} if key == "F" else {1: ("D", -1), 3: ("E", -1), 6: ("G", -1), 8: ("A", -1), 10: ("B", -1)}
     else:
         table = {1: ("C", 1), 3: ("E", -1), 6: ("F", 1), 8: ("G", 1), 10: ("B", -1)}
     L, alt = table[pc]
@@ -91,6 +96,18 @@ def p5_parse_melody_text(text):
     toks = [t for t in p5_re.split(r"[\s,;|]+", (text or "").strip()) if t]
     acc_val = {"#": 1, "♯": 1, "b": -1, "♭": -1, "-": -1}
     for k, tok in enumerate(toks, 1):
+        rm = p5_re.fullmatch(r"(?:R|REST)(?::(\S+))?", tok, p5_re.I)
+        if rm:
+            try:
+                beats = 1.0 if rm.group(1) is None else p5_parse_dur(rm.group(1))
+            except (ValueError, ZeroDivisionError):
+                errors.append(f"#{k} '{tok}': cannot read the rest duration")
+                continue
+            if not (0 < beats <= 8):
+                errors.append(f"#{k} '{tok}': duration must be between 0 and 8 beats")
+                continue
+            notes.append((None, float(beats)))
+            continue
         m = p5_re.fullmatch(r"([A-Ga-g])([#♯b♭-]{0,2})(-?\d)(?::(\S+))?", tok)
         if not m:
             errors.append(f"#{k} '{tok}' is not a note (examples: C4, F#4, Bb3, E4:1.5)")
@@ -112,26 +129,30 @@ def p5_parse_melody_text(text):
 def p5_validate_melody(notes, time_sig=(4, 4)):
     """Return (errors, warnings) for a list of (midi, beats)."""
     errors, warnings = [], []
-    if len(notes) < 2:
-        errors.append("Enter at least 2 notes.")
+    if sum(m is not None for m, _ in notes) < 2:
+        errors.append("Enter at least 2 pitched notes.")
     if len(notes) > P5_MAX_NOTES:
         errors.append(f"Too many notes ({len(notes)}); the limit is {P5_MAX_NOTES}.")
     lo, hi = P5_SOPRANO_HARD
     slo, shi = P5_SOPRANO_SOFT
     for i, (m, _) in enumerate(notes, 1):
+        if m is None:
+            continue
         if not lo <= m <= hi:
             errors.append(f"Note #{i} ({p5_note_name(m)}) is outside the supported soprano range.")
         elif not slo <= m <= shi:
             warnings.append(f"Note #{i} ({p5_note_name(m)}) is outside the usual soprano range C4-A5.")
     for i in range(1, len(notes)):
-        if abs(notes[i][0] - notes[i - 1][0]) > 12:
+        if notes[i][0] is not None and notes[i - 1][0] is not None and abs(notes[i][0] - notes[i - 1][0]) > 12:
             warnings.append(f"Leap larger than an octave between notes #{i} and #{i + 1}.")
     return errors, warnings
 
 
 def p5_guess_key(notes):
     """Best-fitting major key among C G D A E F Bb Eb Ab (diatonic coverage, tonic-at-the-end bonus)."""
-    pcs = [m % 12 for m, _ in notes]
+    pcs = [m % 12 for m, _ in notes if m is not None]
+    if not pcs:
+        return "C"
     best, best_score = "C", -1.0
     for name, fifths in P5_KEY_FIFTHS.items():
         tonic = p5_key_tonic_pc(name)
@@ -147,14 +168,14 @@ def p5_make_melody(notes, key=None, time_sig=(4, 4), pickup=0.0, title="", prese
     """Normalized melody dict handed to the pipeline (see README: integration contract)."""
     return {
         "title": title, "preset": preset, "source": source,
-        "notes": [(int(m), float(b)) for m, b in notes] if notes else None,
+        "notes": [(None if m is None else int(m), float(b)) for m, b in notes] if notes else None,
         "key": key or (p5_guess_key(notes) if notes else None), "mode": "major",
         "time_sig": tuple(time_sig), "pickup": float(pickup), "tempo": int(tempo),
     }
 
 
 def p5_preset_melody(preset_id):
-    """Melody dict for a preset id. Notes are None when the data lives in the team pipeline."""
+    """Melody dict for a preset id, resolving canonical Part 1 presets when available."""
     spec = P5_PRESETS[preset_id]
     notes = None
     if spec["text"]:

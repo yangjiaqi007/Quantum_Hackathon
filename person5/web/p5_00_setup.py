@@ -1,7 +1,7 @@
 # %% [markdown]
 # # Part 5 · Interface, score, audio, export & quantum report
 #
-# Cells **P5-00 … P5-11** belong to Person 5. Every top-level name they define starts with
+# Cells **P5-00 … P5-12** belong to Person 5. Every top-level name they define starts with
 # `p5_` / `P5` (including import aliases), so they can be pasted into the team notebook
 # without clashing with Parts 1-4. They only *call* the team pipeline:
 #
@@ -43,7 +43,7 @@ except Exception:
 
 P5_LANG = "en"                        # "en" or "zh" - change before calling p5_launch()
 P5_OUT_DIR = "p5_output"              # exported files are saved here
-P5_MAX_NOTES = 40                     # cap for custom melodies typed into the UI
+P5_MAX_NOTES = 128                    # supports the complete O Canada score and custom melodies
 P5_SAMPLE_RATE = 16000                # audio sample rate (Hz)
 
 P5_STR = {
@@ -59,7 +59,7 @@ P5_STR = {
     "opt_custom": {"en": "Custom notes (type or click)", "zh": "自定义音符（输入或点击）"},
     "opt_midi": {"en": "Upload a MIDI file", "zh": "上传 MIDI 文件"},
     "custom_hint": {
-        "en": "Note names such as C4 F#4 Bb3; optional duration after ':' in beats (E4:1.5, D4:0.5); '|' is ignored.",
+        "en": "Note names such as C4 F#4 Bb3; durations use beats or note values (C4:q., D4:e., E4:1.5). Use R:q for a rest; ':' in beats (E4:1.5, D4:0.5); '|' is ignored.",
         "zh": "音名如 C4 F#4 Bb3；冒号后可写时值（拍），如 E4:1.5、D4:0.5；'|' 会被忽略。"},
     "pal_dur": {"en": "Duration (beats)", "zh": "时值（拍）"},
     "pal_acc": {"en": "Accidental", "zh": "升降号"},
@@ -70,6 +70,8 @@ P5_STR = {
     "ts_label": {"en": "Time signature", "zh": "拍号"},
     "pickup_label": {"en": "Pickup beats", "zh": "弱起拍数"},
     "style_label": {"en": "Style preset", "zh": "风格预设"},
+    "variant_label": {"en": "Harmony choice", "zh": "????"},
+    "variant_best": {"en": "Best sampled", "zh": "??????"},
     "strict_label": {"en": "Rule strictness", "zh": "规则权重倍数"},
     "solver_label": {"en": "Solver", "zh": "求解器"},
     "s_viterbi": {"en": "viterbi - classical baseline (exact)", "zh": "viterbi - 经典基准（精确）"},

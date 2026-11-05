@@ -5,8 +5,6 @@
 """
 import argparse, glob, os, sys
 import nbformat
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev"))
-import p5_loader
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--out", default="project.ipynb")
@@ -15,6 +13,9 @@ ap.add_argument("--execute", action="store_true")
 args = ap.parse_args()
 
 here = os.path.dirname(os.path.abspath(__file__))
+dev = os.path.join(os.path.dirname(here), "dev")
+sys.path.insert(0, dev)
+import p5_loader
 files = sorted(glob.glob(os.path.join(here, "p5_[0-9][0-9]_*.py")))
 if args.no_mock:
     files = [f for f in files if "_mock" not in f]

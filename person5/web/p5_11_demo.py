@@ -1,10 +1,10 @@
-# %% P5-11 Static showcase (outputs stay visible in the saved notebook) and post-merge self-check
+# %% P5-11 Optional demo showcase and post-merge self-check
 P5_DEFAULT_OPTIONS = {"layers_p": 2, "shots": 2048, "window_size": 3, "noisy": False}
 
 
-def p5_demo_showcase(presets=("ode_to_joy", "o_canada"), solver="xy_qaoa", style="bach_chorale", style_weight=1.0, **options):
+def p5_demo_showcase(presets=("ode_to_joy", "o_canada"), solver="qaoa", style="bach_chorale", style_weight=1.0, **options):
     """Run the demo melodies through the pipeline and show score, audio, report and export for each one.
-    Unlike the widget panel, these outputs are stored in the .ipynb, so judges can read them without running anything."""
+    Render both demo melodies in the current notebook session."""
     opts = {**P5_DEFAULT_OPTIONS, **options}
     for pid in presets:
         spec = P5_PRESETS[pid]
