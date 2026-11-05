@@ -30,9 +30,9 @@ def test_window_boundaries_include_previous_cost_and_full_energy(monkeypatch, tm
         {'midi': 64, 'duration': 1}, {'midi': 65, 'duration': 1}, {'midi': 67, 'duration': 1}]},
         'run': {'backend': 'aer', 'window_size': 1}})
     settings = Settings(data_dir=tmp_path, pipeline_mode='team',
-                        compiler_callable='tests.test_pipeline:fixture_compiler',
-                        solver_callable='tests.test_pipeline:exact_fixture_solver')
-    monkeypatch.setattr('backend.pipeline.create_execution_context', lambda *a, **kw: object())
+                        compiler_callable='person4.tests.test_pipeline:fixture_compiler',
+                        solver_callable='person4.tests.test_pipeline:exact_fixture_solver')
+    monkeypatch.setattr('person4.backend.pipeline.create_execution_context', lambda *a, **kw: object())
     updates = []
     result = run_pipeline(request, settings, updates.append)
     assert [s['candidate_index'] for s in result['slots']] == [0, 1, 0]

@@ -3,6 +3,7 @@ import glob, os, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.dirname(HERE)
+WEB = os.path.join(SRC, "web")
 
 def split_cells(text):
     """Percent format -> [(kind, title, source)]"""
@@ -29,7 +30,7 @@ def split_cells(text):
     return out
 
 def source_files():
-    return sorted(glob.glob(os.path.join(SRC, "p5_[0-9][0-9]_*.py")))
+    return sorted(glob.glob(os.path.join(WEB, "p5_[0-9][0-9]_*.py")))
 
 def load(ns=None, skip=()):
     ns = {"__name__": "__main__"} if ns is None else ns

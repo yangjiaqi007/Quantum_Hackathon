@@ -1,5 +1,7 @@
 """Dev tests for Part 5: (A) static name check, (B) pollution + clobber test, (C) behaviour tests."""
-import ast, os, sys, symtable, re
+import ast, os, sys, symtable, re, tempfile
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import p5_loader
 
@@ -70,16 +72,20 @@ check(np.abs(pcm).max() < 32767 and np.abs(pcm).max() > 8000, f"C6 audio not sil
 # export round trip
 import music21
 mid = ns["p5_m21_bytes"](sc, "midi"); xml = ns["p5_m21_bytes"](sc, "musicxml")
-with open("/tmp/rt.mid", "wb") as f: f.write(mid)
-with open("/tmp/rt.musicxml", "wb") as f: f.write(xml)
-for label, path in (("MIDI", "/tmp/rt.mid"), ("MusicXML", "/tmp/rt.musicxml")):
+rt_dir = tempfile.TemporaryDirectory(prefix="p5-selftest-")
+midi_path = os.path.join(rt_dir.name, "rt.mid")
+xml_path = os.path.join(rt_dir.name, "rt.musicxml")
+pickup_path = os.path.join(rt_dir.name, "pickup.musicxml")
+with open(midi_path, "wb") as f: f.write(mid)
+with open(xml_path, "wb") as f: f.write(xml)
+for label, path in (("MIDI", midi_path), ("MusicXML", xml_path)):
     s2 = music21.converter.parse(path)
     parts = list(s2.parts)
     sop = [n.pitch.midi for n in parts[0].flatten().notes]
     bass = [n.pitch.midi for n in parts[-1].flatten().notes]
     check(len(parts) == 4 and sop == [s.pitches[3] for s in sc.slots] and bass == [s.pitches[0] for s in sc.slots],
           f"C7 {label} round trip: 4 parts, soprano+bass pitches identical")
-dur_rt = [n.quarterLength for n in music21.converter.parse("/tmp/rt.musicxml").parts[0].flatten().notes]
+dur_rt = [n.quarterLength for n in music21.converter.parse(xml_path).parts[0].flatten().notes]
 check([float(d) for d in dur_rt] == [s.beats for s in sc.slots], "C8 MusicXML durations identical (dotted notes)")
 
 # pickup + 3/4 + flats export
@@ -87,7 +93,7 @@ P = ns["P5Slot"]
 sc2 = ns["P5Score"](slots=[P((46,53,58,70),1.0,"I"), P((46,55,62,74),2.0,"I"), P((41,57,60,72),3.0,"IV"), P((43,55,64,76),4.0,"V")],
                     key="Bb", time_sig=(3,4), pickup=1.0, tempo=80, title="pickup")
 xml2 = ns["p5_m21_bytes"](sc2, "musicxml")
-s3 = music21.converter.parse(xml2 if False else (open("/tmp/p.musicxml","wb").write(xml2) and "/tmp/p.musicxml"))
+s3 = music21.converter.parse(xml2 if False else (open(pickup_path,"wb").write(xml2) and pickup_path))
 nums = [m_.number for m_ in s3.parts[0].getElementsByClass("Measure")]
 check(nums[0] == 0 and s3.parts[0].flatten().getElementsByClass("KeySignature")[0].sharps == -2, f"C9 pickup measure numbered 0, key Bb ({nums})")
 
@@ -128,6 +134,8 @@ check("&lt;b&gt;" in html and "12" in html and "Recorded hardware" in html and "
 check(ns["p5_energy_chart_png"](rep)[:4] == b"\x89PNG", "C19 energy chart")
 check(ns["p5_marks_from_report"](rep) == {4: {0, 1}} and ns["p5_windows_from_report"](rep) == [(0, 3), (3, 6)], "C20 marks/windows from report")
 from qiskit import QuantumCircuit
+import matplotlib
+matplotlib.use("Agg")
 qc = QuantumCircuit(3); qc.h(0); qc.cx(0, 1); qc.rzz(0.3, 1, 2)
 check((ns["p5_circuit_png"](qc) or b"")[:4] == b"\x89PNG", "C21 circuit PNG via qiskit mpl drawer")
 
