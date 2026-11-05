@@ -3,9 +3,9 @@ import random
 
 import pytest
 
-from helpers import random_problem
-from quantum.problem import HarmonyProblem
-from quantum.qubo import build_qubo
+from p2_helpers import random_problem
+from person2.quantum.problem import HarmonyProblem
+from person2.quantum.qubo import build_qubo
 
 
 def test_energy_matches_hand_calculation():

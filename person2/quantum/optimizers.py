@@ -16,9 +16,16 @@ def nelder_mead(
     tol: float = 1e-4,
     step: float = 0.25,
 ) -> tuple[list[float], float, int]:
-    """Minimise ``fun`` from ``x0``. Returns ``(x, f(x), n_function_evaluations)``."""
+    """Minimise ``fun`` from ``x0``. Returns ``(x, f(x), n_function_evaluations)``.
+
+    ``maxiter`` is a budget of objective *evaluations*, the same meaning as SciPy's COBYLA
+    ``maxiter``, so a given ``max_iterations`` limits the work identically on every machine.
+    The initial simplex always costs ``len(x0) + 1`` evaluations, so the budget is raised to
+    at least that. A shrink step can overshoot the budget by at most ``len(x0)`` evaluations.
+    """
     n = len(x0)
     nfev = 0
+    budget = max(int(maxiter), n + 1)
 
     def f(x: Sequence[float]) -> float:
         nonlocal nfev
@@ -32,7 +39,7 @@ def nelder_mead(
         pts.append(p)
     vals = [f(p) for p in pts]
 
-    for _ in range(maxiter):
+    while nfev < budget:
         order = sorted(range(n + 1), key=lambda i: vals[i])
         pts = [pts[i] for i in order]
         vals = [vals[i] for i in order]
@@ -76,6 +83,7 @@ def minimize(
 
     ``method``: ``"auto"`` (COBYLA if SciPy exists, else Nelder-Mead), ``"cobyla"``,
     or ``"nelder-mead"``. The method actually used is returned so reports are exact.
+    ``maxiter`` limits objective evaluations for both methods.
     """
     method = method.lower()
     if method == "auto":

@@ -1,9 +1,9 @@
 import pytest
 
-from helpers import brute_force, planted_problem, random_problem
-from quantum import build_qubo, plan_windows, solve_melody, solve_window
-from quantum.qaoa import repair
-from quantum.simulator import PythonBackend
+from p2_helpers import brute_force, planted_problem, random_problem
+from person2.quantum import build_qubo, plan_windows, solve_melody, solve_window
+from person2.quantum.qaoa import repair
+from person2.quantum.simulator import PythonBackend
 
 FAST = dict(optimizer="nelder-mead", maxiter=80, shots=512)
 
@@ -62,7 +62,7 @@ def test_infeasible_only_samples_trigger_flagged_repair():
         def sample(self, params, shots, seed=None):
             return {tuple([0] * self.n): shots}  # no bit set, never one-hot
 
-    from quantum.qaoa import make_backend  # noqa: F401
+    from person2.quantum.qaoa import make_backend  # noqa: F401
 
     ising, _ = q.to_ising().scaled()
     res = solve_window(q, p=1, backend=AllZeroBackend(ising, 1), **FAST)

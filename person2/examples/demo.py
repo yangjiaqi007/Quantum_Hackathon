@@ -1,17 +1,18 @@
 """End-to-end demo on a random 8-slot problem (stand-in for Person 1's compiler output).
 
-    python examples/demo.py              # pure-Python simulator, no dependencies
-    python examples/demo.py qiskit       # Qiskit statevector primitives
+    python person2/examples/demo.py              # pure-Python simulator
+    python person2/examples/demo.py qiskit       # Qiskit statevector primitives
 """
 
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tests"))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))  # repo root, for ``person2.quantum`` and ``Schema``
+sys.path.insert(0, os.path.join(HERE, "..", "tests"))
 
-from helpers import brute_force, random_problem  # noqa: E402
-from quantum import solve_melody  # noqa: E402
+from p2_helpers import brute_force, random_problem  # noqa: E402
+from person2.quantum import solve_melody  # noqa: E402
 
 backend = sys.argv[1] if len(sys.argv) > 1 else "python"
 problem = random_problem(n_slots=8, k=3, seed=42, reach=2)

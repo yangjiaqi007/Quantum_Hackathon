@@ -5,7 +5,7 @@ from __future__ import annotations
 import itertools
 import random
 
-from quantum.problem import HarmonyProblem
+from person2.quantum.problem import HarmonyProblem
 
 
 def random_problem(n_slots: int, k: int, seed: int = 0, reach: int = 1, scale: float = 1.0) -> HarmonyProblem:

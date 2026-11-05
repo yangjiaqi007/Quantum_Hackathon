@@ -2,11 +2,11 @@ import math
 
 import pytest
 
-from helpers import random_problem
-from quantum.optimizers import minimize, nelder_mead
-from quantum.qaoa import adapt_params, linear_ramp_init
-from quantum.qubo import Ising, build_qubo
-from quantum.simulator import PythonBackend
+from p2_helpers import random_problem
+from person2.quantum.optimizers import minimize, nelder_mead
+from person2.quantum.qaoa import adapt_params, linear_ramp_init
+from person2.quantum.qubo import Ising, build_qubo
+from person2.quantum.simulator import PythonBackend
 
 
 def test_single_qubit_closed_form():
@@ -70,3 +70,17 @@ def test_init_and_depth_adaptation():
     assert len(longer) == 10
     assert all(min(init[:3]) - 1e-9 <= g <= max(init[:3]) + 1e-9 for g in longer[:5])
     assert len(adapt_params([0.5, 0.2], 1, 4)) == 8
+
+
+@pytest.mark.parametrize("budget", [10, 30, 80])
+def test_maxiter_is_an_evaluation_budget_for_nelder_mead(budget):
+    """max_iterations must mean the same thing as SciPy COBYLA's maxiter: objective evaluations."""
+    calls = []
+
+    def f(v):
+        calls.append(1)
+        return sum((x - 0.7) ** 2 for x in v)
+
+    _, _, nfev = nelder_mead(f, [0.0] * 6, maxiter=budget, tol=1e-15)
+    assert nfev == len(calls)
+    assert nfev <= max(budget, 7) + 6  # a final shrink step may overshoot by at most n evaluations

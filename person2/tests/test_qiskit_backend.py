@@ -12,10 +12,10 @@ import pytest
 
 pytest.importorskip("qiskit")
 
-from helpers import brute_force, random_problem  # noqa: E402
-from quantum import build_qubo, solve_melody, solve_window  # noqa: E402
-from quantum.qiskit_backend import QiskitBackend, build_qaoa_circuit, ising_to_pauli  # noqa: E402
-from quantum.simulator import PythonBackend  # noqa: E402
+from p2_helpers import brute_force, random_problem  # noqa: E402
+from person2.quantum import build_qubo, solve_melody, solve_window  # noqa: E402
+from person2.quantum.qiskit_backend import QiskitBackend, build_qaoa_circuit, ising_to_pauli  # noqa: E402
+from person2.quantum.simulator import PythonBackend  # noqa: E402
 
 
 def _scaled_ising(seed=1, slots=(0, 1), k=3):
