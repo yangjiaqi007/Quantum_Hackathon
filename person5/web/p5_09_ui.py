@@ -59,7 +59,7 @@ def p5_ui_collect(ui):
         if len(inversions) != expected:
             raise ValueError(f"Enter one inversion per chord slot: this melody has {expected} slots. Separate entries with commas; use - for automatic.")
     return P5Request(melody=melody, style=ui["style"].value, style_weight=1.0,
-                     solver="qaoa", options=options, tempo=tempo, inversions=inversions)
+                     solver=ui["solver"].value, options=options, tempo=tempo, inversions=inversions)
 
 
 def p5_safe_panel(out, fn, run):
@@ -109,9 +109,8 @@ def p5_build_ui():
 
     ui["style"] = W.Dropdown(options=[("Bach chorale", "bach_chorale")], value="bach_chorale", disabled=True,
                              description=p5_t("style_label"), layout=lay("320px"), style=sty)
-    ui["solver"] = W.HTML(f'<div style="font-family:system-ui,Arial,sans-serif;margin:4px 0 8px 0">'
-                          f'<span style="display:inline-block;width:130px">{p5_html.escape(p5_t("solver_label"))}</span>'
-                          f'<b>{p5_html.escape(p5_t("s_qaoa"))}</b></div>')
+    ui["solver"] = W.Dropdown(options=[(p5_t("s_qaoa"), "qaoa"), (p5_t("s_xy"), "xy_qaoa")], value="qaoa",
+                              description=p5_t("solver_label"), layout=lay("470px"), style=sty)
     ui["tempo"] = W.IntSlider(value=100, min=50, max=160, step=2, description=p5_t("tempo_label"), layout=lay("470px"), style=sty)
     ui["inversions"] = W.Text(value="", placeholder="e.g. I, I6, V65, I64, -", description="Inversions / slot",
                                layout=lay("620px"), style=sty)

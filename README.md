@@ -2,7 +2,7 @@
 
 A local web-style music tool: enter or upload a soprano melody, then use a Qiskit QAOA pipeline to generate alto, tenor, and bass. The Jupyter interface shows the score, audio playback, up to three sampled chord progressions, exports, and a quantum resource report.
 
-The notebook is the interface; FastAPI is its local service. The default UI solver is **standard QAOA with an X mixer**. The XY-QAOA research code and experiments are in `person3/`, but XY-QAOA is not offered by the website. The project makes no quantum-advantage claim.
+The notebook is the interface; FastAPI is its local service. The default UI solver is **standard QAOA with an X mixer**. The **Solver** menu also offers Person 3's constraint-preserving **XY-QAOA**; its research code and experiments are in `person3/`. The project makes no quantum-advantage claim.
 
 ## Setup on Windows
 
@@ -33,6 +33,7 @@ In the first window, configure the project adapters for this server session and 
 $env:PIPELINE_MODE = "team"
 $env:COMPILER_CALLABLE = "compiler.adapter:compile_melody"
 $env:SOLVER_CALLABLE = "person2.quantum.adapter:solve"
+$env:XY_SOLVER_CALLABLE = "person3.quantum.adapter:solve"
 $env:PIPELINE_VERSION = "p5-api-v2"
 .\.venv\Scripts\python.exe -m uvicorn person4.backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
@@ -47,7 +48,7 @@ In the second PowerShell window:
 .\.venv\Scripts\python.exe -m jupyter lab person5/project.ipynb
 ```
 
-In JupyterLab, select the **Python (Quantum Harmony)** kernel if prompted, then choose **Kernel → Restart Kernel and Run All Cells**. In the panel, choose a preset melody or enter/upload one, keep **Use local quantum API** checked, select **Aer simulator**, and click **Run harmonization**. The web UI exposes standard QAOA only.
+In JupyterLab, select the **Python (Quantum Harmony)** kernel if prompted, then choose **Kernel → Restart Kernel and Run All Cells**. In the panel, choose a preset melody or enter/upload one, keep **Use local quantum API** checked, select **Aer simulator**, and click **Run harmonization**. The **Solver** menu defaults to standard QAOA; choose **xy_qaoa** to run the XY-mixer solver instead.
 
 The result appears in **Score & audio**, **Quantum report**, and **Export**. If QAOA sampling produces them, the Harmony choice menu offers up to three low-energy solutions with different chord progressions; fewer than three may be available. Exported MIDI, MusicXML, WAV, and PNG files go into a local `p5_output/` folder.
 
@@ -76,7 +77,7 @@ Unchecking **Use local quantum API** runs a local classical fixture for interfac
 | --- | --- |
 | `person1/compiler/` and `compiler/` | Melody presets, music-rule costs, candidate voicings, and compiler adapter |
 | `person2/quantum/` | Standard QAOA, QUBO/Ising conversion, and window solving |
-| `person3/quantum/`, `person3/experiments/` | XY-mixer research solver and experiments; not connected to the website solver menu |
+| `person3/quantum/`, `person3/experiments/` | XY-mixer solver (offered in the Solver menu via `person3/quantum/adapter.py`) and experiments |
 | `person4/backend/` | FastAPI service, jobs, hardware backends, and resource reports |
 | `person5/project.ipynb` | Jupyter interface for melody entry, score, audio, reports, and export |
 | `person5/web/` | Notebook source cells and notebook builder |
