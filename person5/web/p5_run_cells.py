@@ -1,7 +1,8 @@
 # %% [markdown]
-# ### Self-check — run once after merging the cells
+# ### Live solver demonstration
 #
-# Prints a ✔/✘ checklist: dependencies, pipeline hook, melody parsing, score/audio/export, and a 4-note end-to-end run.
+# Run this notebook from the project repository so its compiler, backend, and solver modules are available. No IBM hardware is needed.
+# The setup checks the real API and runs both QAOA variants on Aer, then renders their scores and resource reports.
 
 # %% P5-12 Self-check
 p5_selfcheck()
@@ -9,7 +10,7 @@ p5_selfcheck()
 # %% [markdown]
 # ### Interactive panel
 #
-# Pick a melody (or type / click / upload one), then press **Run harmonization**. The panel uses standard QAOA.
+# Pick a melody (or type / click / upload one), choose QAOA or XY-QAOA, then press **Run harmonization**.
 # Tabs: *Score & audio* · *Quantum report* · *Export* (MIDI, MusicXML, WAV, PNG). Use `p5_launch("zh")` for Chinese.
 
 # %% P5-13 Launch the panel

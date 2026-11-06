@@ -34,6 +34,13 @@ for path in files:
 if args.execute:
     from nbconvert.preprocessors import ExecutePreprocessor
     ExecutePreprocessor(timeout=300, kernel_name="python3").preprocess(nb, {"metadata": {"path": here}})
+    # Widget view outputs need live frontend/kernel state and can crash VS Code's
+    # renderer when a saved notebook is opened before a kernel is connected.
+    # Keep the widget-launch code cell; omit only its transient saved view.
+    for cell in nb.cells:
+        if cell.cell_type == "code":
+            cell.outputs = [out for out in cell.outputs
+                            if "application/vnd.jupyter.widget-view+json" not in out.get("data", {})]
 nbformat.validate(nb)
 nbformat.write(nb, os.path.join(here, args.out))
 print("wrote", args.out, "cells:", len(nb.cells))

@@ -3,7 +3,7 @@
 **Bridging music theory and QAOA with Qiskit** — Qiskit Fall Fest 2026, University of Waterloo.
 
 Give the tool a soprano melody. It writes the alto, tenor and bass: the rules of four-part harmony are compiled into a
-penalty Hamiltonian, standard QAOA finds a
+penalty Hamiltonian, standard QAOA or constraint-preserving XY-QAOA searches for a
 low-energy voicing, and you get a score, audio you can listen to, MIDI/MusicXML files and an honest quantum resource report.
 Nobody has to write a circuit.
 
@@ -21,9 +21,9 @@ jupyter lab project.ipynb      # or open it in VS Code
 ```
 
 1. Run the notebook top to bottom.
-2. Run `p5_selfcheck()` — it prints a ✔/✘ checklist (dependencies, pipeline hook, score / audio / export, 4-note end-to-end run).
+2. The setup cell starts the real local API and checks its team compiler, Aer backend, QAOA, and XY-QAOA adapters. The self-check runs both solvers and renders their results.
 3. Use the panel from `p5_launch()`: choose *Ode to Joy*, *O Canada*, type notes (`E4 E4 F4 G4`, durations as `E4:1.5` or `E4:q.`; rests as `R:q`), click the
-   on-screen note buttons, or upload a MIDI file. The style is fixed to Bach chorale and the solver is standard QAOA; press **Run harmonization**.
+   on-screen note buttons, or upload a MIDI file. The style is fixed to Bach chorale; choose QAOA or XY-QAOA and press **Run harmonization**.
 4. The *Score & audio*, *Quantum report* and *Export* tabs fill in. Files are also saved to `p5_output/`.
 
 `p5_launch("zh")` switches the interface to Chinese. `p5_demo_showcase()` can optionally render both demo melodies in the current session.
@@ -36,6 +36,7 @@ For live harmonization, start the API in one PowerShell terminal from the reposi
 $env:PIPELINE_MODE = "team"
 $env:COMPILER_CALLABLE = "compiler.adapter:compile_melody"
 $env:SOLVER_CALLABLE = "person2.quantum.adapter:solve"
+$env:XY_SOLVER_CALLABLE = "person3.quantum.adapter:solve"
 $env:PIPELINE_VERSION = "p5-api-v2"
 .\.venv\Scripts\python.exe -m uvicorn person4.backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
@@ -48,7 +49,7 @@ Jupyter with the repository's Python (this avoids the stale Windows `jupyter-lab
 ```
 
 Restart the notebook kernel, run all cells, expand **Advanced quantum settings**, keep **Use local quantum API** checked,
-choose **Aer simulator**, and click **Run harmonization**. The website uses standard QAOA. The widget polls the API job and then
+choose **Aer simulator**, select **QAOA** or **XY-QAOA**, and click **Run harmonization**. The widget polls the API job and then
 shows its score, generated WAV, and per-window quantum resources. When available, the **Harmony choice** selector compares up to three low-energy sampled paths with different chord progressions; each choice updates the score, playback, report, and exports. The candidates come from sampled window solutions, so three distinct progressions are not guaranteed. To test the connection before harmonizing, open
 `http://127.0.0.1:8000/docs` or the `/capabilities` page. If the API is stopped or still in mock mode, the UI displays the
 connection/configuration error; it does not substitute mock output. The offline mock remains available by unchecking **Use local

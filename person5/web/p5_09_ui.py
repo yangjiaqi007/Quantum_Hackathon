@@ -109,8 +109,8 @@ def p5_build_ui():
 
     ui["style"] = W.Dropdown(options=[("Bach chorale", "bach_chorale")], value="bach_chorale", disabled=True,
                              description=p5_t("style_label"), layout=lay("320px"), style=sty)
-    ui["solver"] = W.Dropdown(options=[(p5_t("s_qaoa"), "qaoa"), (p5_t("s_xy"), "xy_qaoa")], value="qaoa",
-                              description=p5_t("solver_label"), layout=lay("470px"), style=sty)
+    ui["solver"] = W.Dropdown(options=[(p5_t("s_qaoa"), "qaoa"), (p5_t("s_xy"), "xy_qaoa")],
+                              value="qaoa", description=p5_t("solver_label"), layout=lay("470px"), style=sty)
     ui["tempo"] = W.IntSlider(value=100, min=50, max=160, step=2, description=p5_t("tempo_label"), layout=lay("470px"), style=sty)
     ui["inversions"] = W.Text(value="", placeholder="e.g. I, I6, V65, I64, -", description="Inversions / slot",
                                layout=lay("620px"), style=sty)
@@ -118,7 +118,7 @@ def p5_build_ui():
     ui["p"] = W.IntSlider(value=2, min=1, max=5, description=p5_t("adv_p"), layout=lay("420px"), style=sty)
     ui["shots"] = W.Dropdown(options=[512, 1024, 2048, 4096, 8192], value=2048, description=p5_t("adv_shots"), layout=lay("300px"), style=sty)
     ui["window"] = W.IntSlider(value=3, min=2, max=4, description=p5_t("adv_window"), layout=lay("420px"), style=sty)
-    ui["use_api"] = W.Checkbox(value=True, description="Use local quantum API", indent=False)
+    ui["use_api"] = W.Checkbox(value=True, description="Use local team API (required)", indent=False, disabled=True)
     ui["backend"] = W.Dropdown(options=[("Aer simulator", "aer"), ("Noisy fake backend", "noisy"),
                                         ("IBM Quantum hardware", "ibm")], value="aer",
                                 description="Quantum backend", layout=lay("320px"), style=sty)

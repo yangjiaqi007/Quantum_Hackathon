@@ -2,7 +2,7 @@
 
 A local web-style music tool: enter or upload a soprano melody, then use a Qiskit QAOA pipeline to generate alto, tenor, and bass. The Jupyter interface shows the score, audio playback, up to three sampled chord progressions, exports, and a quantum resource report.
 
-The notebook is the interface; FastAPI is its local service. The default UI solver is **standard QAOA with an X mixer**. The **Solver** menu also offers Person 3's constraint-preserving **XY-QAOA**; its research code and experiments are in `person3/`. The project makes no quantum-advantage claim.
+The notebook is the interface; its setup cell starts the local FastAPI service with the team's compiler, standard QAOA, and XY-QAOA adapters. Both solvers run on the Aer simulator by default. The project makes no quantum-advantage claim.
 
 ## Setup on Windows
 
@@ -23,36 +23,17 @@ If `py -3.14` is not recognized, install Python 3.14 and reopen PowerShell. The 
 
 ## Run the app
 
-Open **two PowerShell windows**, both in the cloned `Quantum_Hackathon` folder.
-
-### 1. Start the local QAOA API
-
-In the first window, configure the project adapters for this server session and start the API:
-
-```powershell
-$env:PIPELINE_MODE = "team"
-$env:COMPILER_CALLABLE = "compiler.adapter:compile_melody"
-$env:SOLVER_CALLABLE = "person2.quantum.adapter:solve"
-$env:XY_SOLVER_CALLABLE = "person3.quantum.adapter:solve"
-$env:PIPELINE_VERSION = "p5-api-v2"
-.\.venv\Scripts\python.exe -m uvicorn person4.backend.main:app --host 127.0.0.1 --port 8000 --workers 1
-```
-
-Keep this window open. Visit **http://127.0.0.1:8000/capabilities**. The service should report the team adapters and Aer as configured. **http://127.0.0.1:8000/docs** provides the API documentation.
-
-### 2. Open the notebook interface
-
-In the second PowerShell window:
+Open PowerShell in the repository root and run:
 
 ```powershell
 .\.venv\Scripts\python.exe -m jupyter lab person5/project.ipynb
 ```
 
-In JupyterLab, select the **Python (Quantum Harmony)** kernel if prompted, then choose **Kernel → Restart Kernel and Run All Cells**. In the panel, choose a preset melody or enter/upload one, keep **Use local quantum API** checked, select **Aer simulator**, and click **Run harmonization**. The **Solver** menu defaults to standard QAOA; choose **xy_qaoa** to run the XY-mixer solver instead.
+In JupyterLab, select the **Python (Quantum Harmony)** kernel if prompted, then choose **Kernel → Restart Kernel and Run All Cells**. The setup cell starts the local API in team mode and confirms that Aer and both solvers are connected. The self-check runs a short real QAOA and XY-QAOA example; the interactive panel lets you choose either solver. No IBM account or hardware access is needed.
 
 The result appears in **Score & audio**, **Quantum report**, and **Export**. If QAOA sampling produces them, the Harmony choice menu offers up to three low-energy solutions with different chord progressions; fewer than three may be available. Exported MIDI, MusicXML, WAV, and PNG files go into a local `p5_output/` folder.
 
-Stop the API with **Ctrl+C** in its PowerShell window. It must be running before you submit a harmonization job.
+The API process is stopped when the notebook kernel shuts down. The notebook refuses to continue if it sees a mock or incomplete API.
 
 ## IBM Quantum hardware (optional)
 
@@ -67,9 +48,9 @@ $env:IBM_BACKEND = "your accessible backend name"
 
 Keep the token private. Do not put it in the notebook, source code, or a committed file. Confirm that `ibm` appears in `/capabilities` before selecting IBM hardware in the notebook. Hardware availability, queue time, and account access depend on IBM Quantum.
 
-## Offline interface and mock mode
+## Development mock
 
-Unchecking **Use local quantum API** runs a local classical fixture for interface work. It is not a QAOA result. The API's default configuration is also a mock; the PowerShell environment settings above select the team's compiler and QAOA solver. The resource report identifies mock results honestly.
+The development mock is excluded from `person5/project.ipynb`. Its notebook setup requires the real team adapters and Aer simulator, and the self-check confirms that both QAOA variants return non-mock results.
 
 ## Project map
 
@@ -77,7 +58,7 @@ Unchecking **Use local quantum API** runs a local classical fixture for interfac
 | --- | --- |
 | `person1/compiler/` and `compiler/` | Melody presets, music-rule costs, candidate voicings, and compiler adapter |
 | `person2/quantum/` | Standard QAOA, QUBO/Ising conversion, and window solving |
-| `person3/quantum/`, `person3/experiments/` | XY-mixer solver (offered in the Solver menu via `person3/quantum/adapter.py`) and experiments |
+| `person3/quantum/`, `person3/experiments/` | Constraint-preserving XY-QAOA solver and experiments |
 | `person4/backend/` | FastAPI service, jobs, hardware backends, and resource reports |
 | `person5/project.ipynb` | Jupyter interface for melody entry, score, audio, reports, and export |
 | `person5/web/` | Notebook source cells and notebook builder |
@@ -86,10 +67,10 @@ Unchecking **Use local quantum API** runs a local classical fixture for interfac
 The notebook is generated from the source files in `person5/web/`. After editing those source files, rebuild it from the repository root:
 
 ```powershell
-.\.venv\Scripts\python.exe person5/web/build_notebook.py --out ..\project.ipynb
+.\.venv\Scripts\python.exe person5/web/build_notebook.py --no-mock --out project.ipynb
 ```
 
-The builder writes the output relative to its own folder, so `..\project.ipynb` targets `person5/project.ipynb`.
+The builder writes the output relative to its own folder, so `project.ipynb` targets `person5/project.ipynb`. The submission notebook excludes the development mock.
 
 ## Development checks
 

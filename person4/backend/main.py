@@ -4,6 +4,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from uuid import UUID
 from importlib.util import find_spec
+import os
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -63,6 +64,7 @@ def create_app(settings=None, runner=None) -> FastAPI:
     def capabilities():
         team_ready = (settings.pipeline_mode == 'team' and bool(settings.compiler_callable)
                       and bool(settings.solver_callable))
+        xy_solver_ready = bool(os.getenv('XY_SOLVER_CALLABLE', '').strip())
         quantum_installed = all(find_spec(name) is not None for name in ('qiskit', 'qiskit_aer'))
         runtime_installed = find_spec('qiskit_ibm_runtime') is not None
         ready = ['mock']
@@ -78,6 +80,7 @@ def create_app(settings=None, runner=None) -> FastAPI:
             "backends": ["mock", "aer", "noisy"] + (["ibm"] if settings.ibm_enabled else []),
             "configured_backends": ready,
             "team_adapters_configured": team_ready,
+            "xy_solver_configured": xy_solver_ready,
             "ibm_enabled": settings.ibm_enabled,
             "note": "Aer, noisy and IBM modes require the team's compiler and solver adapters and optional quantum packages.",
             "job_timeout_seconds": settings.job_timeout_seconds,
